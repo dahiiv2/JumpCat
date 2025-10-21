@@ -220,6 +220,13 @@ public class UhcMeetupListener implements Listener {
         if (UhcMeetupController.CURRENT != null) {
             UhcMeetupController.CURRENT.onPlayerDeath(victim.getUniqueId(), killerId);
         }
+        // Inform killer about points gained (standardized)
+        if (killerId != null) {
+            Player kp = victim.getServer().getPlayer(killerId);
+            if (kp != null) {
+                try { kp.sendMessage(ChatColor.AQUA + "+" + cfg.scoreKill + " Points (kill)"); } catch (Throwable ignored) {}
+            }
+        }
         // Keep natural drops and add custom UHC drops
         try {
             ItemStack head = new ItemStack(Material.GOLDEN_APPLE, 1);
@@ -269,6 +276,14 @@ public class UhcMeetupListener implements Listener {
         if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) killerId = lh.attacker;
         if (UhcMeetupController.CURRENT != null) {
             UhcMeetupController.CURRENT.onPlayerDeath(victim.getUniqueId(), killerId);
+        }
+        // Update K/D sidebar centrally and inform killer about logout credit
+        try { com.jumpcat.core.combat.CombatService.recordElimination(victim.getUniqueId(), killerId); } catch (Throwable ignored) {}
+        if (killerId != null) {
+            Player kp = victim.getServer().getPlayer(killerId);
+            if (kp != null) {
+                try { kp.sendMessage(ChatColor.AQUA + "+" + cfg.scoreKill + " Points (logout)"); } catch (Throwable ignored) {}
+            }
         }
         // Award assists except credited killer
         java.util.UUID creditedKiller = killerId;

@@ -78,7 +78,9 @@ public class UhcMeetupController implements GameController {
         try { w.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false); } catch (Throwable ignored) {}
         try { w.setGameRule(org.bukkit.GameRule.RANDOM_TICK_SPEED, 0); } catch (Throwable ignored) {}
         int teamCount = 0; for (String key : teams.listTeamKeys()) { if (!teams.getTeamMembers(key).isEmpty()) teamCount++; }
-        int diameter = Math.max(config.finalDiameter, config.borderBase + config.borderPerTeam * teamCount);
+        // Choose scatter radius first, then set border diameter to enclose it (account for -10 margin in scatter formula)
+        int desiredScatterRadius = config.borderBase + config.borderPerTeam * teamCount; // adds per team
+        int diameter = Math.max(config.finalDiameter, 2 * (desiredScatterRadius + 10));
         manager.setupBorder(w, center, diameter);
         // Make vanilla border non-intrusive; SoftBorder will enforce
         try { w.getWorldBorder().setCenter(center); w.getWorldBorder().setSize(60000000); } catch (Throwable ignored) {}
@@ -87,7 +89,7 @@ public class UhcMeetupController implements GameController {
         aliveByTeam.clear(); aliveAll.clear();
         // Scatter participants by team: teams placed around a circle, members near team center
         java.util.Random rnd = new java.util.Random();
-        int radius = diameter / 2 - 10;
+        int radius = diameter / 2 - 10; // equals desiredScatterRadius
         // Build participants set: prefer carryOver list (players from previous round world), else team membership
         java.util.Map<String, java.util.List<org.bukkit.entity.Player>> participantsByTeam = new java.util.HashMap<>();
         if (!carryOver.isEmpty()) {
@@ -337,11 +339,9 @@ public class UhcMeetupController implements GameController {
     // Called by listener when a participant dies or logs out
     public void onPlayerDeath(java.util.UUID victimId, java.util.UUID killerId) {
         if (!running) return;
-        // Award killer points
+        // Award killer points (message handled in listener for context-specific suffix)
         if (killerId != null) {
             points.addPoints(killerId, config.scoreKill);
-            var kp = Bukkit.getPlayer(killerId);
-            if (kp != null) try { kp.sendMessage(ChatColor.AQUA + "+" + config.scoreKill + " Points"); } catch (Throwable ignored) {}
         }
         // Survival drip: +7 to all alive excluding victim
         for (java.util.UUID id : new java.util.HashSet<>(aliveAll)) {

@@ -221,9 +221,9 @@ public class BattleBoxController implements GameController {
     private void endMatchInSeries(BattleBoxRuntime rt, char winnerSide, boolean timeout) {
         if (!timeout && (winnerSide == 'A' || winnerSide == 'B')) {
             Set<UUID> winners = winnerSide == 'A' ? rt.teamMembers('A') : rt.teamMembers('B');
-            for (UUID id : winners) points.addPoints(id, 200);
+            for (UUID id : winners) points.addPoints(id, 100);
             String winTeam = (winnerSide == 'A') ? labelForSide(rt, 'A') : labelForSide(rt, 'B');
-            Bukkit.broadcastMessage(ChatColor.GREEN + "Winner: " + winTeam + ChatColor.WHITE + " (+200 each)");
+            Bukkit.broadcastMessage(ChatColor.GREEN + "Winner: " + winTeam + ChatColor.WHITE + " (+100 each)");
         } else if (timeout) {
             Bukkit.broadcastMessage(ChatColor.YELLOW + "Match ended (timer): no win bonus.");
         }
@@ -549,8 +549,8 @@ public class BattleBoxController implements GameController {
         // Award +200 per winner member if we have a winner and not timeout
         if (!timeout && (winnerSide == 'A' || winnerSide == 'B')) {
             Set<UUID> winners = winnerSide == 'A' ? rt.teamMembers('A') : rt.teamMembers('B');
-            for (UUID id : winners) points.addPoints(id, 200);
-            Bukkit.broadcastMessage(ChatColor.GREEN + "Winner: " + ChatColor.YELLOW + (winnerSide=='A'?teamLabel(teamA):teamLabel(teamB)) + ChatColor.WHITE + " (+200 each)");
+            for (UUID id : winners) points.addPoints(id, 100);
+            Bukkit.broadcastMessage(ChatColor.GREEN + "Winner: " + ChatColor.YELLOW + (winnerSide=='A'?teamLabel(teamA):teamLabel(teamB)) + ChatColor.WHITE + " (+100 each)");
         } else {
             Bukkit.broadcastMessage(ChatColor.YELLOW + "Round ended" + (timeout?" (timer)":"" ) + ": no win bonus.");
         }

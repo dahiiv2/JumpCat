@@ -169,8 +169,8 @@ public class BattleBoxListener implements Listener {
         if (rt == null || !rt.isParticipant(victim.getUniqueId())) return;
 
         if (victim.getKiller() != null) {
-            points.addPoints(victim.getKiller().getUniqueId(), 75);
-            try { victim.getKiller().sendMessage(org.bukkit.ChatColor.AQUA + "+75 Points"); } catch (Throwable ignored) {}
+            points.addPoints(victim.getKiller().getUniqueId(), 38);
+            try { victim.getKiller().sendMessage(org.bukkit.ChatColor.AQUA + "+38 Points (kill)"); } catch (Throwable ignored) {}
         }
         // Prevent item drops in the world
         e.getDrops().clear();
@@ -185,10 +185,10 @@ public class BattleBoxListener implements Listener {
                 if (killerId != null && killerId.equals(attackerId)) continue;
                 HitAgg agg = entry.getValue();
                 if (agg.sum >= 8.0 && now - agg.last <= 12_000L) {
-                    points.addPoints(attackerId, 25);
+                    points.addPoints(attackerId, 13);
                     Player ap = victim.getServer().getPlayer(attackerId);
                     if (ap != null) {
-                        try { ap.sendMessage(org.bukkit.ChatColor.AQUA + "+25 Points (assist)"); } catch (Throwable ignored) {}
+                        try { ap.sendMessage(org.bukkit.ChatColor.AQUA + "+13 Points (assist)"); } catch (Throwable ignored) {}
                     }
                 }
             }
@@ -212,17 +212,19 @@ public class BattleBoxListener implements Listener {
             for (BattleBoxRuntime r : controller.getActiveRuntimes()) { if (r.isParticipant(victim.getUniqueId())) { rt = r; break; } }
         }
         if (rt == null || !rt.isParticipant(victim.getUniqueId())) return;
-        // Treat as death (no killer, no +75), move to spectator
+        // Treat as death and move to spectator
         rt.markDead(victim.getUniqueId());
         // If we have a recent last damager (within 10s), award them the kill points
         LastHit lh = lastDamager.get(victim.getUniqueId());
         if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) {
-            points.addPoints(lh.attacker, 75);
+            points.addPoints(lh.attacker, 38);
             Player killer = victim.getServer().getPlayer(lh.attacker);
             if (killer != null) {
-                try { killer.sendMessage(org.bukkit.ChatColor.AQUA + "+75 Points (opponent disconnected)"); } catch (Throwable ignored) {}
+                try { killer.sendMessage(org.bukkit.ChatColor.AQUA + "+38 Points (logout)"); } catch (Throwable ignored) {}
             }
         }
+        // Update K/D sidebar centrally
+        try { com.jumpcat.core.combat.CombatService.recordElimination(victim.getUniqueId(), (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) ? lh.attacker : null); } catch (Throwable ignored) {}
         // Award assists to others except credited killer on quit
         UUID creditedKiller = (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) ? lh.attacker : null;
         Map<UUID, HitAgg> contrib2 = damageDealt.remove(victim.getUniqueId());
@@ -233,10 +235,10 @@ public class BattleBoxListener implements Listener {
                 if (creditedKiller != null && creditedKiller.equals(attackerId)) continue;
                 HitAgg agg = entry.getValue();
                 if (agg.sum >= 8.0 && now2 - agg.last <= 12_000L) {
-                    points.addPoints(attackerId, 25);
+                    points.addPoints(attackerId, 13);
                     Player ap = victim.getServer().getPlayer(attackerId);
                     if (ap != null) {
-                        try { ap.sendMessage(org.bukkit.ChatColor.AQUA + "+25 Points (assist)"); } catch (Throwable ignored) {}
+                        try { ap.sendMessage(org.bukkit.ChatColor.AQUA + "+13 Points (assist)"); } catch (Throwable ignored) {}
                     }
                 }
             }

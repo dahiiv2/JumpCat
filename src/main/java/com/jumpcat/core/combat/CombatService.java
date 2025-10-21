@@ -40,15 +40,12 @@ public class CombatService implements Listener {
         if (!anyGameRunning()) return;
         Player p = e.getPlayer();
         if (p == null) return;
-        // Only count as death if in a game world and not spectator
+        // Defer K/D handling to per-game listeners to avoid double counts
         try {
-            if (p.getGameMode() == org.bukkit.GameMode.SPECTATOR) return;
             String wn = p.getWorld().getName();
             boolean inGameWorld = wn.startsWith("skywars_r") || wn.startsWith("uhc_meetup_r") || wn.equals("battle_box");
-            if (!inGameWorld) return;
-            sidebar.incDeaths(p.getUniqueId());
+            if (inGameWorld) return;
         } catch (Throwable ignored) {}
-        sidebar.updateAll();
     }
 
     // Allow other listeners (e.g., SkyWars void/logout) to update K/D centrally
