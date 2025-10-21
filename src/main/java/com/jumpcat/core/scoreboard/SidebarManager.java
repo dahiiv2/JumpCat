@@ -21,6 +21,8 @@ public class SidebarManager {
     private final MiniMessage mm = MiniMessage.miniMessage();
     private final Map<UUID, Scoreboard> boards = new HashMap<>();
     private final Map<UUID, List<String>> lastEntries = new HashMap<>();
+    private final Map<UUID, Integer> kills = new HashMap<>();
+    private final Map<UUID, Integer> deaths = new HashMap<>();
     private PointsService pointsService;
     private TeamManager teamManager;
     private volatile String currentGame = "-";
@@ -58,6 +60,8 @@ public class SidebarManager {
             if (teamManager != null) try { teamManager.applyToScoreboard(s); } catch (Throwable ignored) {}
             return s;
         });
+        // Ensure the player is actually using our scoreboard
+        try { p.setScoreboard(sb); } catch (Throwable ignored) {}
         // Always mirror latest team assignments/colors into this board so TAB/nametag stay correct
         if (teamManager != null) try { teamManager.applyToScoreboard(sb); } catch (Throwable ignored) {}
         Objective obj = sb.getObjective("jumpcat");
@@ -93,6 +97,8 @@ public class SidebarManager {
                 if (r > 0) rank = "#" + r; else rank = "-";
             } catch (Throwable ignored) { }
         }
+        int myKills = kills.getOrDefault(p.getUniqueId(), 0);
+        int myDeaths = deaths.getOrDefault(p.getUniqueId(), 0);
 
         // Build lines top->bottom using descending scores to control order
         int score = 12;
@@ -107,9 +113,9 @@ public class SidebarManager {
         prev.add(setLine(sb, obj, score--, gameLine));
         prev.add(setLine(sb, obj, score--, roundLine));
         prev.add(setLine(sb, obj, score--, ""));
-        // Placeholder stats (to be wired later)
-        prev.add(setLine(sb, obj, score--, "§fKills: §a0"));
-        prev.add(setLine(sb, obj, score--, "§fDeaths: §c0"));
+        // Session stats (reset each game start)
+        prev.add(setLine(sb, obj, score--, "§fKills: §a" + myKills));
+        prev.add(setLine(sb, obj, score--, "§fDeaths: §c" + myDeaths));
     }
 
     public Scoreboard getScoreboard() { return Bukkit.getScoreboardManager().getMainScoreboard(); }
@@ -176,4 +182,8 @@ public class SidebarManager {
     public boolean isGameRunning() { return gameRunning; }
     public String getCurrentGameName() { return currentGame; }
     public String getCurrentRoundLabel() { return currentRound; }
+
+    public void incKills(UUID id) { if (id != null) kills.put(id, kills.getOrDefault(id, 0) + 1); }
+    public void incDeaths(UUID id) { if (id != null) deaths.put(id, deaths.getOrDefault(id, 0) + 1); }
+    public void resetStats() { kills.clear(); deaths.clear(); }
 }

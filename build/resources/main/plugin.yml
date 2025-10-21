@@ -40,3 +40,7 @@ commands:
   world:
     description: Admin world tools (list/goto/setspawn/load/unload)
     usage: /world <list|goto|setspawn|load|unload>
+
+  event:
+    description: Event admin commands
+    usage: /event end

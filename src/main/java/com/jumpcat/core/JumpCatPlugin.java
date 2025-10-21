@@ -1,6 +1,7 @@
 package com.jumpcat.core;
 
 import com.jumpcat.core.listeners.PlayerJoinQuitListener;
+import com.jumpcat.core.combat.CombatService;
 import com.jumpcat.core.listeners.KillFeedbackListener;
 import com.jumpcat.core.scoreboard.SidebarManager;
 import com.jumpcat.core.teams.TeamManager;
@@ -85,6 +86,8 @@ public final class JumpCatPlugin extends JavaPlugin {
         // SkyWars listener
         getServer().getPluginManager().registerEvents(new com.jumpcat.core.game.skywars.SkyWarsListener(skywars, this.teamManager), this);
         getServer().getPluginManager().registerEvents(new KillFeedbackListener(this), this);
+        // Centralized combat tracker for kills/deaths → sidebar K/D (active only when a game runs)
+        getServer().getPluginManager().registerEvents(new CombatService(this.sidebarManager), this);
         // Dynamic MOTD with active game status (from sidebar) and dynamic slots cap
         getServer().getPluginManager().registerEvents(new MotdListener(this, (BattleBoxController) this.gameRegistry.get("battlebox"), this.slotsManager, this.sidebarManager), this);
         // Enforce slots cap at login
@@ -92,6 +95,11 @@ public final class JumpCatPlugin extends JavaPlugin {
 
         // Periodic sidebar refresh
         getServer().getScheduler().runTaskTimer(this, () -> sidebarManager.updateAll(), 20L, 20L);
+
+        // Show sidebar for players already online (e.g., plugin reload/dev environment)
+        for (org.bukkit.entity.Player p : getServer().getOnlinePlayers()) {
+            try { sidebarManager.show(p); } catch (Throwable ignored) {}
+        }
 
         PluginCommand cmd = getCommand("jumpcat");
         if (cmd != null) {
@@ -145,6 +153,11 @@ public final class JumpCatPlugin extends JavaPlugin {
             WorldCommand wc = new WorldCommand();
             worldCmd.setExecutor(wc);
             worldCmd.setTabCompleter(wc);
+        }
+
+        PluginCommand eventCmd = getCommand("event");
+        if (eventCmd != null) {
+            eventCmd.setExecutor(new com.jumpcat.core.commands.EventCommand(this, this.teamManager, this.pointsService, this.sidebarManager, this.lobbyManager));
         }
     }
 

@@ -74,6 +74,25 @@ public class SkyWarsListener implements Listener {
         if (SkyWarsController.CURRENT != null) {
             SkyWarsController.CURRENT.onPlayerDeath(p.getUniqueId(), killerId);
         }
+        // Broadcast logout elimination message (SkyWars-specific path)
+        try {
+            String victimTeamKey = teams.getPlayerTeamKey(p).orElse("");
+            String victimLabel = victimTeamKey.isEmpty() ? "" : ("" + teams.getTeamColor(victimTeamKey) + ChatColor.BOLD + teams.getTeamLabel(victimTeamKey) + ChatColor.RESET + ChatColor.WHITE + " ");
+            String victimName = ChatColor.WHITE + p.getName();
+            if (killerId != null) {
+                Player killer = p.getServer().getPlayer(killerId);
+                if (killer != null) {
+                    String killerTeamKey = teams.getPlayerTeamKey(killer).orElse("");
+                    String killerLabel = killerTeamKey.isEmpty() ? "" : ("" + teams.getTeamColor(killerTeamKey) + ChatColor.BOLD + teams.getTeamLabel(killerTeamKey) + ChatColor.RESET + ChatColor.WHITE + " ");
+                    String killerName = ChatColor.WHITE + killer.getName();
+                    p.getServer().broadcastMessage(victimLabel + victimName + ChatColor.GRAY + " » " + ChatColor.RED + "killed by" + ChatColor.GRAY + " » " + killerLabel + killerName + ChatColor.DARK_GRAY + " (logout)");
+                }
+            } else {
+                p.getServer().broadcastMessage(victimLabel + victimName + ChatColor.GRAY + " » " + ChatColor.RED + "died" + ChatColor.DARK_GRAY + " (logout)");
+            }
+        } catch (Throwable ignored) {}
+        // Update K/D sidebar centrally for logout (no PlayerDeathEvent)
+        try { com.jumpcat.core.combat.CombatService.recordElimination(p.getUniqueId(), killerId); } catch (Throwable ignored) {}
         // Award assists except credited killer
         java.util.UUID creditedKiller = killerId;
         java.util.Map<java.util.UUID, HitAgg> contrib = damageDealt.remove(p.getUniqueId());
@@ -200,21 +219,12 @@ public class SkyWarsListener implements Listener {
         java.util.UUID killerId = null;
         LastHit lh = lastDamager.get(p.getUniqueId());
         if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) killerId = lh.attacker;
-        // Spectate and move to round spawn
-        try { p.setGameMode(org.bukkit.GameMode.SPECTATOR); } catch (Throwable ignored) {}
-        try { p.teleport(p.getWorld().getSpawnLocation()); } catch (Throwable ignored) {}
-        // Trigger KillFeedback-style feedback for killer
+        // Route through Bukkit death pipeline so general listeners handle feedback/messages
         if (killerId != null) {
             org.bukkit.entity.Player killer = p.getServer().getPlayer(killerId);
-            if (killer != null) {
-                try { killer.sendTitle(org.bukkit.ChatColor.RED + "\u2694 " + org.bukkit.ChatColor.WHITE + p.getName(), "", 0, 20, 10); } catch (Throwable ignored) {}
-                try { killer.playSound(killer.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.2f); } catch (Throwable ignored) {}
-            }
+            if (killer != null) { try { p.damage(1000.0, killer); return; } catch (Throwable ignored) {} }
         }
-        // Notify controller
-        if (SkyWarsController.CURRENT != null) {
-            SkyWarsController.CURRENT.onPlayerDeath(p.getUniqueId(), killerId);
-        }
+        try { p.damage(1000.0); return; } catch (Throwable ignored) {}
         // Award assists (>=8 dmg within 12s) to others except credited killer
         java.util.UUID creditedKiller = killerId;
         java.util.Map<java.util.UUID, HitAgg> contrib = damageDealt.remove(p.getUniqueId());

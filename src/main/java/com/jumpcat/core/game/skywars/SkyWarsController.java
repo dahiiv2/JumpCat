@@ -405,21 +405,26 @@ public class SkyWarsController implements GameController {
             currentWorldName = null;
             // Stop soft border if active
             try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
-            // Teleport players out
+            // Teleport and reset players out of any SkyWars round world
             World lobby = plugin.getLobbyManager().getLobbyWorld();
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                try {
-                    if (p.getWorld().getName().equals(toUnload)) {
-                        p.teleport(lobby.getSpawnLocation());
-                        // Full reset
+            org.bukkit.Location lobbySpawn = lobby != null ? lobby.getSpawnLocation() : Bukkit.getWorlds().get(0).getSpawnLocation();
+            for (World ww : Bukkit.getWorlds()) {
+                if (!ww.getName().startsWith("skywars_r")) continue;
+                for (Player p : ww.getPlayers()) {
+                    try {
                         p.getInventory().clear();
                         p.getInventory().setArmorContents(null);
-                        p.setGameMode(GameMode.SURVIVAL);
+                        p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
                         p.setHealth(20.0);
                         p.setFoodLevel(20);
                         p.setSaturation(20);
-                    }
-                } catch (Throwable ignored) {}
+                        p.setLevel(0);
+                        p.setExp(0f);
+                        p.setTotalExperience(0);
+                        p.setGameMode(GameMode.ADVENTURE);
+                        p.teleport(lobbySpawn);
+                    } catch (Throwable ignored) {}
+                }
             }
             try { manager.unloadAndDelete(toUnload); } catch (Throwable ignored) {}
 
@@ -428,9 +433,37 @@ public class SkyWarsController implements GameController {
                 new BukkitRunnable(){ @Override public void run(){ if (!running) return; beginRound(Bukkit.getConsoleSender()); } }.runTaskLater(plugin, 200L);
             } else {
                 running = false; CURRENT = null;
+                try { Bukkit.broadcastMessage(ChatColor.AQUA + "SkyWars series complete!"); } catch (Throwable ignored) {}
+                try { showTeamStandings(); } catch (Throwable ignored) {}
                 try { plugin.getSidebarManager().setGameStatus(getDisplayName(), "-", false); } catch (Throwable ignored) {}
             }
         } }.runTaskLater(plugin, 40L);
+    }
+
+    private void showTeamStandings() {
+        // Sum points per team (offline names resolved) and print with team colors/labels
+        Map<String, Integer> teamTotals = new LinkedHashMap<>();
+        for (String key : teams.listTeamKeys()) {
+            int sum = 0;
+            for (String name : teams.getTeamMembers(key)) {
+                UUID id = Bukkit.getOfflinePlayer(name).getUniqueId();
+                sum += plugin.getPointsService().getPoints(id);
+            }
+            if (sum > 0) teamTotals.put(key, sum);
+        }
+        List<Map.Entry<String,Integer>> rows = new ArrayList<>(teamTotals.entrySet());
+        rows.sort((a,b) -> Integer.compare(b.getValue(), a.getValue()));
+        if (!rows.isEmpty()) {
+            Bukkit.broadcastMessage("");
+            Bukkit.broadcastMessage(ChatColor.AQUA + "Team Standings:");
+            int i = 1;
+            for (Map.Entry<String,Integer> e : rows) {
+                String label = teams.getTeamColor(e.getKey()) + "" + ChatColor.BOLD + teams.getTeamLabel(e.getKey()) + ChatColor.RESET + ChatColor.WHITE;
+                Bukkit.broadcastMessage(ChatColor.YELLOW + "#"+i+" " + label + ChatColor.GRAY + " | " + ChatColor.WHITE + "Points: " + ChatColor.AQUA + e.getValue());
+                i++;
+            }
+            Bukkit.broadcastMessage("");
+        }
     }
 
     private void deleteRecursive(File f) {
