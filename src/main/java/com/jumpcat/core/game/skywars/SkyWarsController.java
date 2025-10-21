@@ -25,6 +25,7 @@ public class SkyWarsController implements GameController {
     private int roundIndex = 0;
     private String currentWorldName = null;
     private boolean endingRound = false;
+    private com.jumpcat.core.border.SoftBorder softBorder = null;
 
     private final Map<String, Set<UUID>> aliveByTeam = new HashMap<>();
     private final Set<UUID> aliveAll = new HashSet<>();
@@ -70,6 +71,8 @@ public class SkyWarsController implements GameController {
         boolean wasRunning = running;
         running = false;
         CURRENT = null;
+        // Stop soft border if active
+        try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
         // Teleport/reset everyone out of any SkyWars round worlds, then unload/delete them
         org.bukkit.Location lobby = null;
         try { var lw = plugin.getLobbyManager().getLobbyWorld(); if (lw != null) lobby = lw.getSpawnLocation(); } catch (Throwable ignored) {}
@@ -167,37 +170,65 @@ public class SkyWarsController implements GameController {
         }
         int startDiameter = (int)Math.ceil(maxR * 2 + 30);
         manager.setupBorder(w, center, startDiameter);
+        // Make vanilla border non-intrusive (very large), we will enforce a custom soft border
+        try { w.getWorldBorder().setCenter(center); w.getWorldBorder().setSize(60000000); } catch (Throwable ignored) {}
 
-        // Grace then enable PVP; start shrinks 30s after grace ends
+        // Pre-start freeze (5s) then Grace → enable PVP; start shrinks 30s after grace ends
+        final int preStart = 5;
         final int grace = config.getGraceSeconds();
+        // Freeze players during pre-start
+        try {
+            for (Player p : w.getPlayers()) p.setWalkSpeed(0.0f);
+        } catch (Throwable ignored) {}
+        // Unfreeze after pre-start
+        new BukkitRunnable(){ @Override public void run(){
+            try { for (Player p : w.getPlayers()) p.setWalkSpeed(0.2f); } catch (Throwable ignored) {}
+        } }.runTaskLater(plugin, preStart * 20L);
+        // Schedule grace end after pre-start + grace
         new BukkitRunnable(){ @Override public void run(){ try { w.setPVP(true); } catch (Throwable ignored) {}
-            // Delay shrink by 30 seconds after grace
+            // Delay soft border shrink by 30 seconds after grace
             new BukkitRunnable(){ @Override public void run(){ if (!running || !w.getName().equals(currentWorldName)) return; startShrinks(w, center, startDiameter); } }.runTaskLater(plugin, 30L * 20L);
-        } }.runTaskLater(plugin, grace * 20L);
+        } }.runTaskLater(plugin, (preStart + grace) * 20L);
 
-        // Action bar: during grace show countdown; after grace show time left, border size, safe Y band
+        // Action bar: pre-start countdown, then grace countdown; after grace show time left, border radius, safe Y band
         new BukkitRunnable(){ int t=0; @Override public void run(){ if (!running || !w.getName().equals(currentWorldName)) { cancel(); return; }
             int hard = config.getRoundHardCapSeconds();
             int elapsed = t;
-            int remaining = Math.max(0, hard - elapsed);
+            if (elapsed < preStart) {
+                int left = preStart - elapsed;
+                String msg = ChatColor.GOLD + "Starting in: " + ChatColor.WHITE + left + "s";
+                for (Player p : w.getPlayers()) { try { p.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR, new net.md_5.bungee.api.chat.TextComponent(msg)); } catch (Throwable ignored) {} }
+                t += 1; return;
+            }
+            int after = elapsed - preStart;
+            int remaining = Math.max(0, hard - after);
             String msg;
-            if (elapsed < grace) {
-                int left = grace - elapsed;
+            if (after < grace) {
+                int left = grace - after;
                 msg = ChatColor.GREEN + "Grace: " + ChatColor.WHITE + left + "s";
             } else {
                 // Safe Y band from [40..120] to [55..75] by fullShrinkSeconds, starting 30s after grace
                 int full = config.getFullShrinkSeconds();
-                int sinceGrace = elapsed - grace;
+                int sinceGrace = after - grace;
                 int pre = Math.max(0, 30 - Math.max(0, sinceGrace)); // remaining pre-shrink seconds
                 int sinceShrink = Math.max(0, sinceGrace - 30);
                 double f = Math.min(1.0, (double)sinceShrink / Math.max(1, full));
                 int bandBot = (int)Math.round(40 + (55 - 40) * f);
                 int bandTop = (int)Math.round(120 + (75 - 120) * f);
-                int minutes = remaining / 60; int seconds = remaining % 60;
-                double bsize = 0;
-                try { bsize = w.getWorldBorder().getSize(); } catch (Throwable ignored) {}
-                String timer = ChatColor.AQUA + String.format("%d:%02d", minutes, seconds);
-                String border = ChatColor.GRAY + " | " + ChatColor.WHITE + "Border: " + ChatColor.YELLOW + (int)Math.round(bsize);
+                // Soft border: compute current radius from our schedule
+                double startRadius = 200.0;
+                // SkyWars: stop 30s before hard cap at 10 diameter (radius 5)
+                double endRadius = 5.0;
+                int durationSeconds = Math.max(1, hard - grace - 60);
+                double bradius;
+                if (sinceGrace < 30) {
+                    bradius = startRadius;
+                } else {
+                    double f2 = Math.min(1.0, (double)sinceShrink / Math.max(1, durationSeconds));
+                    bradius = startRadius + (endRadius - startRadius) * f2;
+                }
+                String timer = ChatColor.AQUA + String.format("%d:%02d", remaining / 60, remaining % 60);
+                String border = ChatColor.GRAY + " | " + ChatColor.WHITE + "Radius: " + ChatColor.YELLOW + (int)Math.round(bradius);
                 String safe = ChatColor.GRAY + " | " + ChatColor.WHITE + "Safe Y: " + ChatColor.GOLD + bandBot + ChatColor.WHITE + "-" + ChatColor.GOLD + bandTop;
                 String preMsg = sinceGrace < 30 ? ChatColor.GRAY + " | " + ChatColor.WHITE + "Shrink in: " + ChatColor.YELLOW + (30 - Math.max(0, sinceGrace)) + "s" : "";
                 msg = timer + border + safe + preMsg;
@@ -205,19 +236,24 @@ public class SkyWarsController implements GameController {
             for (Player p : w.getPlayers()) {
                 try { p.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR, new net.md_5.bungee.api.chat.TextComponent(msg)); } catch (Throwable ignored) {}
             }
-            t += 1; if (t > hard + 5) cancel();
+            t += 1; if (t > hard + 5 + preStart) cancel();
         } }.runTaskTimer(plugin, 20L, 20L);
 
-        // Hard cap at 7:00
-        new BukkitRunnable(){ int t=0; @Override public void run(){ if (!running || !w.getName().equals(currentWorldName)) { cancel(); return; } if (t++ >= config.getRoundHardCapSeconds()) {
-            Bukkit.broadcastMessage(ChatColor.GOLD + "Time!" + ChatColor.WHITE + " Deciding winner by standings.");
+        // Hard cap: award win points to all survivors, then end the round (starts counting after pre-start)
+        new BukkitRunnable(){ int t=0; @Override public void run(){ if (!running || !w.getName().equals(currentWorldName)) { cancel(); return; } if (t++ >= (preStart + config.getRoundHardCapSeconds())) {
+            for (UUID id : new HashSet<>(aliveAll)) {
+                try { plugin.getPointsService().addPoints(id, 200); } catch (Throwable ignored) {}
+                Player p = Bukkit.getPlayer(id);
+                if (p != null) try { p.sendMessage(ChatColor.AQUA + "+200 Points (survived)"); } catch (Throwable ignored) {}
+            }
+            try { Bukkit.broadcastMessage(ChatColor.YELLOW + "Round ended. Win points awarded to all survivors."); } catch (Throwable ignored) {}
             endRound(true);
             cancel();
         } } }.runTaskTimer(plugin, 20L, 20L);
     }
 
     private void startShrinks(World w, Location center, int startDiameter) {
-        final double start = startDiameter;
+        final double start = startDiameter; // kept for Y-band schedule reference
         final double end = Math.max(1, config.getFinalBorderDiameter());
         final int full = config.getFullShrinkSeconds() * 20;
         final int startBot = 40;
@@ -225,13 +261,27 @@ public class SkyWarsController implements GameController {
         final int endBot = 55;
         final int endTop = 75;
 
-        // Border shrink every 5 ticks
-        new BukkitRunnable(){ int t=0; @Override public void run(){ if (!running || !w.getName().equals(currentWorldName)) { cancel(); return; }
-            double f = Math.min(1.0, (double)t/full);
-            double size = start + (end - start) * f;
-            try { w.getWorldBorder().setCenter(center); w.getWorldBorder().setSize(size); } catch (Throwable ignored) {}
-            t+=5; if (t >= full) cancel();
-        } }.runTaskTimer(plugin, 0L, 5L);
+        // Start custom soft border (damage-only, particles) and run it to end 30s before hard cap
+        try {
+            int durationSeconds = Math.max(1, config.getRoundHardCapSeconds() - config.getGraceSeconds() - 60);
+            double startRadius = 200.0; // start at 200 radius (400 diameter)
+            double endRadius = 5.0; // stop at radius 5 (10 diameter) 30s before hard cap and hold until end
+            softBorder = new com.jumpcat.core.border.SoftBorder(
+                    plugin,
+                    w,
+                    center,
+                    startRadius,
+                    endRadius,
+                    durationSeconds * 20,
+                    10, // enforce every 10 ticks
+                    20, // particles every second
+                    2.0, // baseDps: 1 heart/sec
+                    4.0, // maxDps: 2 hearts/sec
+                    5.0, // reach max at 5 blocks outside
+                    true // show particles
+            );
+            softBorder.start();
+        } catch (Throwable ignored) {}
 
         // Vertical band shrink and damage tick (every second)
         new BukkitRunnable(){ int t=0; @Override public void run(){ if (!running || !w.getName().equals(currentWorldName)) { cancel(); return; }
@@ -353,6 +403,8 @@ public class SkyWarsController implements GameController {
             roundIndex++;
             String toUnload = currentWorldName;
             currentWorldName = null;
+            // Stop soft border if active
+            try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
             // Teleport players out
             World lobby = plugin.getLobbyManager().getLobbyWorld();
             for (Player p : Bukkit.getOnlinePlayers()) {

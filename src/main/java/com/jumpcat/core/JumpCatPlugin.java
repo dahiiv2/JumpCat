@@ -77,7 +77,7 @@ public final class JumpCatPlugin extends JavaPlugin {
         // UHC listener (block whitelist, powerless bows, etc.)
         getServer().getPluginManager().registerEvents(new UhcMeetupListener(uhcCfg), this);
         // Register listeners
-        getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this.sidebarManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this.sidebarManager, this), this);
         getServer().getPluginManager().registerEvents(new TeamChatListener(this.teamManager), this);
         getServer().getPluginManager().registerEvents(new TeamDeathListener(this.teamManager), this);
         getServer().getPluginManager().registerEvents(new LobbyListener(this.lobbyManager), this);

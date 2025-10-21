@@ -35,6 +35,12 @@ public class LobbyListener implements Listener {
         World lw = lobby.getLobbyWorld();
         if (lw == null) return;
         Player p = e.getPlayer();
+        // If player joins into an active game world or is already spectator (set by game join logic), do not override
+        try {
+            String wn = p.getWorld() != null ? p.getWorld().getName() : "";
+            if (p.getGameMode() == GameMode.SPECTATOR) return;
+            if (wn.startsWith("skywars_r") || wn.startsWith("uhc_meetup_r") || wn.equalsIgnoreCase("battle_box")) return;
+        } catch (Throwable ignored) {}
         Location spawn = lobby.getLobbySpawn();
         if (spawn != null) p.teleport(spawn, PlayerTeleportEvent.TeleportCause.PLUGIN);
         p.setGameMode(GameMode.ADVENTURE);

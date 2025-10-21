@@ -48,6 +48,8 @@ public class GameCommand implements CommandExecutor {
                             desc = ChatColor.GRAY + "Fast-paced UHC: two rounds, shrinking border, last team alive wins."; break;
                         case "battlebox":
                             desc = ChatColor.GRAY + "Team arena duels in short rounds. Eliminate the other team to win."; break;
+                        case "skywars":
+                            desc = ChatColor.GRAY + "Fight other teams in floating islands with a shrinking border."; break;
                         default:
                             desc = ChatColor.GRAY + "A JumpCat mini-game. Good luck!"; break;
                     }

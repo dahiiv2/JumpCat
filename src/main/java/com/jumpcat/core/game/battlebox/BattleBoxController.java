@@ -20,6 +20,7 @@ import net.kyori.adventure.text.Component;
 import java.util.*;
 
 public class BattleBoxController implements GameController {
+    public static volatile BattleBoxController CURRENT = null;
     private final org.bukkit.plugin.Plugin plugin;
     private final BattleBoxManager manager;
     private final TeamManager teams;
@@ -60,6 +61,7 @@ public class BattleBoxController implements GameController {
         buildRoundRobin(pool);
         if (rounds.isEmpty()) { initiator.sendMessage(ChatColor.RED + "Unable to build schedule."); return; }
         seriesRunning = true;
+        CURRENT = this;
         roundIndex = -1;
         seriesArenaHistory.clear();
         initiator.sendMessage(ChatColor.YELLOW + "Starting Battle Box round-robin with " + pool.size() + " teams across up to " + arenas.size() + " arenas.");
@@ -114,6 +116,7 @@ public class BattleBoxController implements GameController {
             }
             showTeamStandings();
             try { ((com.jumpcat.core.JumpCatPlugin)plugin).getSidebarManager().setGameStatus(getDisplayName(), "-", false); } catch (Throwable ignored) {}
+            CURRENT = null;
             return;
         }
         // Assign matches to arenas up to capacity (rotate to avoid repeats)
@@ -303,6 +306,7 @@ public class BattleBoxController implements GameController {
 
         this.currentRuntime = rt;
         running = true;
+        CURRENT = this;
         try { ((com.jumpcat.core.JumpCatPlugin)plugin).getSidebarManager().setGameStatus(getDisplayName(), "1/1", true); } catch (Throwable ignored) {}
 
         // Teleport participants to spawns and set initial state (freeze period)
@@ -337,6 +341,7 @@ public class BattleBoxController implements GameController {
             activeRuntimes.clear();
         }
         currentRuntime = null;
+        CURRENT = null;
         // Teleport everyone in battle_box to lobby spawn (fallback: battle_box spawn) in ADVENTURE
         org.bukkit.World bb = manager.getWorld();
         org.bukkit.Location dest = null;
@@ -552,6 +557,7 @@ public class BattleBoxController implements GameController {
         // Reset runtime
         currentRuntime = null;
         running = false;
+        CURRENT = null;
         // Send everyone in battle_box world to lobby spawn (fallback: battle_box spawn) so they don't linger in arena
         org.bukkit.Location dest = null;
         var lobbyW = Bukkit.getWorld("lobby");

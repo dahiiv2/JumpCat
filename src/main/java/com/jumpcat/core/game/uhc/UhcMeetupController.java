@@ -26,6 +26,7 @@ public class UhcMeetupController implements GameController {
     private int roundIndex = 0; // 0 or 1
     private String currentWorldName = null;
     private BukkitRunnable activeTask;
+    private com.jumpcat.core.border.SoftBorder softBorder = null;
     private final java.util.Map<String, java.util.Set<java.util.UUID>> aliveByTeam = new java.util.HashMap<>();
     private final java.util.Set<java.util.UUID> aliveAll = new java.util.HashSet<>();
     private final java.util.List<java.util.UUID> carryOver = new java.util.ArrayList<>();
@@ -79,6 +80,8 @@ public class UhcMeetupController implements GameController {
         int teamCount = 0; for (String key : teams.listTeamKeys()) { if (!teams.getTeamMembers(key).isEmpty()) teamCount++; }
         int diameter = Math.max(config.finalDiameter, config.borderBase + config.borderPerTeam * teamCount);
         manager.setupBorder(w, center, diameter);
+        // Make vanilla border non-intrusive; SoftBorder will enforce
+        try { w.getWorldBorder().setCenter(center); w.getWorldBorder().setSize(60000000); } catch (Throwable ignored) {}
         Bukkit.broadcastMessage(ChatColor.AQUA + "UHC Meetup Round " + (roundIndex+1) + ChatColor.WHITE + " starting...");
         try { ((com.jumpcat.core.JumpCatPlugin)plugin).getSidebarManager().setGameStatus(getDisplayName(), (roundIndex+1) + "/2", true); } catch (Throwable ignored) {}
         aliveByTeam.clear(); aliveAll.clear();
@@ -146,13 +149,30 @@ public class UhcMeetupController implements GameController {
     }
 
     private void startShrinks(World w, org.bukkit.Location center, int startDiameter) {
-        // World border shrink over shrinkSeconds to finalDiameter
+        // Custom soft border (damage-only + particles) over shrinkSeconds
         final double start = startDiameter;
         final double end = Math.max(1, config.finalDiameter);
         final int totalTicks = Math.max(1, config.shrinkSeconds) * 20;
         final int ceilTicks = Math.max(1, config.yCeilShrinkSeconds) * 20;
-        // Schedule border shrink (every 5 ticks to reduce overhead, preserving total duration)
-        new BukkitRunnable(){ int t=0; @Override public void run(){ if (!running) { cancel(); return; } double f = Math.min(1.0, (double)t/totalTicks); double size = start + (end - start) * f; try { w.getWorldBorder().setCenter(center); w.getWorldBorder().setSize(size); } catch (Throwable ignored) {} t+=5; if (t >= totalTicks) { cancel(); } } }.runTaskTimer(plugin, 0L, 5L);
+        try {
+            double startRadius = Math.max(1.0, start / 2.0);
+            double endRadius = Math.max(1.0, end / 2.0);
+            softBorder = new com.jumpcat.core.border.SoftBorder(
+                    plugin,
+                    w,
+                    center,
+                    startRadius,
+                    endRadius,
+                    totalTicks,
+                    10, // enforce every 10 ticks
+                    20, // particles every second
+                    2.0, // baseDps: 1 heart/sec
+                    4.0, // maxDps: 2 hearts/sec
+                    5.0, // reach max at 5 blocks outside
+                    true // show particles
+            );
+            softBorder.start();
+        } catch (Throwable ignored) {}
         // Schedule Y-ceiling shrink (to 80) then hold last minute
         final int ceilStart = config.yCeilStart;
         final int ceilEnd = config.yCeilEnd;
@@ -161,15 +181,20 @@ public class UhcMeetupController implements GameController {
         } else { UhcMeetupListener.setCeilingY(ceilEnd); }
         t+=20; if (t >= totalTicks) { cancel(); roundTimerFinish(); } } }.runTaskTimer(plugin, 0L, 20L);
 
-        // Action bar: show Y-cap, border size, and remaining time every second
+        // Action bar: show Y-cap, soft border radius, and remaining time every second
         new BukkitRunnable(){ int remaining = Math.max(0, config.shrinkSeconds); @Override public void run(){
             if (!running || w == null || !w.isChunkLoaded(w.getSpawnLocation().getBlockX()>>4, w.getSpawnLocation().getBlockZ()>>4)) { if (!running) cancel(); }
             if (!running) { cancel(); return; }
             int ycap = UhcMeetupListener.getCeilingY();
-            double bsize = 0.0; try { bsize = w.getWorldBorder().getSize(); } catch (Throwable ignored) {}
+            // Compute current radius from schedule
+            double startRadius = Math.max(1.0, start / 2.0);
+            double endRadius = Math.max(1.0, end / 2.0);
+            int elapsed = Math.max(0, config.shrinkSeconds - Math.max(0, remaining));
+            double f = Math.min(1.0, (double)elapsed / Math.max(1, config.shrinkSeconds));
+            double radiusNow = startRadius + (endRadius - startRadius) * f;
             int r = Math.max(0, remaining);
             int mm = r / 60; int ss = r % 60;
-            String msg = ChatColor.AQUA + "Y " + ycap + ChatColor.WHITE + " | " + ChatColor.GOLD + "Border " + (int)Math.round(bsize) + ChatColor.WHITE + " | " + ChatColor.GREEN + String.format("%d:%02d", mm, ss);
+            String msg = ChatColor.AQUA + "Y " + ycap + ChatColor.WHITE + " | " + ChatColor.GOLD + "Radius " + (int)Math.round(radiusNow) + ChatColor.WHITE + " | " + ChatColor.GREEN + String.format("%d:%02d", mm, ss);
             for (org.bukkit.entity.Player p : w.getPlayers()) {
                 try { p.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR, new net.md_5.bungee.api.chat.TextComponent(msg)); } catch (Throwable ignored) {}
             }
@@ -245,6 +270,7 @@ public class UhcMeetupController implements GameController {
 
     private void endRound(boolean aborted) {
         if (!running) return;
+        try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
         String prevWorld = currentWorldName;
         if (roundIndex == 1) {
             // Final cleanup after Round 2: show team standings (points), then teleport to lobby and unload
@@ -281,6 +307,7 @@ public class UhcMeetupController implements GameController {
             // Schedule Round 2 without sending players to lobby; beginRound will teleport participants to the new world
             final String toUnload = prevWorld;
             roundIndex = 1;
+            try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
             // Capture participants currently in previous round world to carry over
             try {
                 if (toUnload != null) {
@@ -302,6 +329,7 @@ public class UhcMeetupController implements GameController {
         } else {
             running = false;
             CURRENT = null;
+            try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
             try { ((com.jumpcat.core.JumpCatPlugin)plugin).getSidebarManager().setGameStatus(getDisplayName(), "-", false); } catch (Throwable ignored) {}
         }
     }
@@ -351,6 +379,7 @@ public class UhcMeetupController implements GameController {
     public void stop(CommandSender initiator) {
         boolean wasRunning = running;
         running = false;
+        try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
         try { if (activeTask != null) activeTask.cancel(); } catch (Throwable ignored) {}
         // Teleport/reset everyone out of any UHC round worlds, then unload/delete them
         org.bukkit.Location lobby = null;
