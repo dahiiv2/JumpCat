@@ -1,0 +1,42 @@
+name: JumpCat
+main: com.jumpcat.core.JumpCatPlugin
+version: 0.1.0
+api-version: '1.21'
+load: POSTWORLD
+author: JumpCat
+commands:
+  jumpcat:
+    description: JumpCat base command
+    usage: /<command>
+    aliases: [jc]
+  team:
+    description: Manage teams
+    usage: /team <join|leave|list> [team]
+  teamchat:
+    description: Toggle team chat mode
+    aliases: [tc]
+  game:
+    description: Manage games
+    usage: /game <list|start|stop|status>
+  bb:
+    description: Battle Box admin
+    usage: /bb arena <create|setpos1|setpos2|setspawn|list>
+  lobby:
+    description: Teleport to the lobby
+    usage: /lobby
+  leaderboard:
+    description: Show the points leaderboard
+    usage: /leaderboard [page]
+    aliases: [lb]
+  holo:
+    description: Manage holograms (set/clear/reload)
+    usage: /holo <set|clear|reload>
+  points:
+    description: Manage points
+    usage: /points clear [save]
+  slots:
+    description: Set server slots cap
+    usage: /slots <number|off>
+  world:
+    description: Admin world tools (list/goto/setspawn/load/unload)
+    usage: /world <list|goto|setspawn|load|unload>
