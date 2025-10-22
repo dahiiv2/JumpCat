@@ -15,6 +15,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.inventory.ItemStack;
 
 public class SkyWarsListener implements Listener {
@@ -189,15 +190,44 @@ public class SkyWarsListener implements Listener {
     // Track damage and cancel when PvP disabled
     @EventHandler
     public void onDamage(EntityDamageByEntityEvent e) {
-        if (!(e.getEntity() instanceof Player) || !(e.getDamager() instanceof Player)) return;
+        if (!(e.getEntity() instanceof Player)) return;
         Player victim = (Player) e.getEntity();
-        Player attacker = (Player) e.getDamager();
         if (!inSkywars(victim.getWorld())) return;
         if (e.isCancelled()) return;
-        lastDamager.put(victim.getUniqueId(), new LastHit(attacker.getUniqueId(), System.currentTimeMillis()));
-        double dmg = e.getFinalDamage();
-        java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
-        m.merge(attacker.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+        
+        // Handle player vs player damage
+        if (e.getDamager() instanceof Player) {
+            Player attacker = (Player) e.getDamager();
+            lastDamager.put(victim.getUniqueId(), new LastHit(attacker.getUniqueId(), System.currentTimeMillis()));
+            double dmg = e.getFinalDamage();
+            java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
+            m.merge(attacker.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+        }
+        // Handle arrow damage (bow shots)
+        else if (e.getDamager() instanceof org.bukkit.entity.Projectile) {
+            org.bukkit.entity.Projectile projectile = (org.bukkit.entity.Projectile) e.getDamager();
+            if (projectile.getShooter() instanceof Player) {
+                Player shooter = (Player) projectile.getShooter();
+                lastDamager.put(victim.getUniqueId(), new LastHit(shooter.getUniqueId(), System.currentTimeMillis()));
+                double dmg = e.getFinalDamage();
+                java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
+                m.merge(shooter.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+            }
+        }
+    }
+
+    // Track fishing rod hooks for kill attribution
+    @EventHandler
+    public void onFish(PlayerFishEvent e) {
+        if (e.getState() != PlayerFishEvent.State.CAUGHT_ENTITY) return;
+        if (!(e.getCaught() instanceof Player)) return;
+        
+        Player fisher = e.getPlayer();
+        Player hooked = (Player) e.getCaught();
+        if (!inSkywars(fisher.getWorld()) || !inSkywars(hooked.getWorld())) return;
+        
+        // Record the fisher as the last damager for kill attribution
+        lastDamager.put(hooked.getUniqueId(), new LastHit(fisher.getUniqueId(), System.currentTimeMillis()));
     }
 
     @EventHandler
