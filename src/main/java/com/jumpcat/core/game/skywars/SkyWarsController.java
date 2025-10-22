@@ -398,6 +398,20 @@ public class SkyWarsController implements GameController {
         if (!running) return;
         if (endingRound) return;
         endingRound = true;
+        // Immediately disable PvP in all SkyWars round worlds to prevent post-game damage
+        try {
+            for (World ww : Bukkit.getWorlds()) {
+                if (ww.getName().startsWith("skywars_r")) {
+                    ww.setPVP(false);
+                    // Put everyone into spectator to fully freeze combat/movement until we reset
+                    for (Player p : ww.getPlayers()) {
+                        try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {}
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        // Also stop soft border immediately to avoid environmental damage during the short delay
+        try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
         // Delay a bit to let titles show
         new BukkitRunnable(){ @Override public void run(){
             roundIndex++;

@@ -27,6 +27,8 @@ public class UhcMeetupController implements GameController {
     private String currentWorldName = null;
     private BukkitRunnable activeTask;
     private com.jumpcat.core.border.SoftBorder softBorder = null;
+    private com.jumpcat.core.border.SoftBorder graceBorder = null; // particles during grace
+    private boolean endingRound = false;
     private final java.util.Map<String, java.util.Set<java.util.UUID>> aliveByTeam = new java.util.HashMap<>();
     private final java.util.Set<java.util.UUID> aliveAll = new java.util.HashSet<>();
     private final java.util.List<java.util.UUID> carryOver = new java.util.ArrayList<>();
@@ -60,11 +62,13 @@ public class UhcMeetupController implements GameController {
         running = true;
         CURRENT = this;
         roundIndex = 0;
+        endingRound = false;
         beginRound(initiator);
     }
 
     private void beginRound(CommandSender initiator) {
         if (!running) return;
+        endingRound = false;
         String dest = "uhc_meetup_r" + (roundIndex+1);
         boolean cloned = manager.cloneTemplate(dest);
         if (!cloned) { initiator.sendMessage(ChatColor.RED + "Failed to clone template world '" + config.templateWorld + "'."); stop(initiator); return; }
@@ -140,12 +144,33 @@ public class UhcMeetupController implements GameController {
         }
         // Give kits immediately (players have items during grace)
         giveKits(w);
-        // Grace period: disable PvP for graceSeconds, set initial ceiling at start value
+        // Grace period: disable PvP for graceSeconds, set initial ceiling at start value, and show particle border
         try { w.setPVP(false); } catch (Throwable ignored) {}
         UhcMeetupListener.setCeilingY(config.yCeilStart);
         Bukkit.broadcastMessage(ChatColor.YELLOW + "Grace: " + config.graceSeconds + "s. PvP disabled.");
+        // Start a particle-only soft border during grace so players can see the boundary
+        try {
+            double startRadius = Math.max(1.0, diameter / 2.0);
+            graceBorder = new com.jumpcat.core.border.SoftBorder(
+                    plugin,
+                    w,
+                    center,
+                    startRadius,
+                    startRadius,
+                    Math.max(1, config.graceSeconds) * 20, // duration = grace
+                    20,  // enforce tick (no damage anyway)
+                    10,  // particles every 0.5s
+                    0.0, // no damage during grace
+                    0.0,
+                    1.0,
+                    true // show particles
+            );
+            graceBorder.start();
+        } catch (Throwable ignored) {}
         // Schedule grace end → enable PvP and start shrink schedulers
         new BukkitRunnable(){ @Override public void run(){ if (!running) return; try { w.setPVP(true);} catch(Throwable ignored){}
+            // Stop grace particle border
+            try { if (graceBorder != null) graceBorder.stop(); } catch (Throwable ignored) {} finally { graceBorder = null; }
             Bukkit.broadcastMessage(ChatColor.GREEN + "Grace ended. PvP enabled!");
             startShrinks(w, center, diameter);
         } }.runTaskLater(plugin, config.graceSeconds * 20L);
@@ -208,6 +233,10 @@ public class UhcMeetupController implements GameController {
     private void roundTimerFinish() {
         // End of round timer fallback; elimination logic will also call endRound when one team remains
         // Timer expired: award win points to every surviving player and announce
+        // Immediately disable PvP to prevent post-game damage
+        endingRound = true;
+        try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
+        try { if (currentWorldName != null) { org.bukkit.World w = org.bukkit.Bukkit.getWorld(currentWorldName); if (w != null) { w.setPVP(false); for (org.bukkit.entity.Player p : w.getPlayers()) { try { p.setGameMode(org.bukkit.GameMode.SPECTATOR); } catch (Throwable ignored) {} } } } } catch (Throwable ignored) {}
         for (java.util.UUID id : new java.util.HashSet<>(aliveAll)) {
             points.addPoints(id, config.scoreWinAlive);
             var p = Bukkit.getPlayer(id);
@@ -358,6 +387,10 @@ public class UhcMeetupController implements GameController {
         }
         if (aliveTeams <= 1) {
             if (lastTeam != null) {
+                endingRound = true;
+                // Immediately disable PvP and stop border to prevent post-game damage; put everyone to spectator
+                try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
+                try { if (currentWorldName != null) { org.bukkit.World w = org.bukkit.Bukkit.getWorld(currentWorldName); if (w != null) { w.setPVP(false); for (org.bukkit.entity.Player p : w.getPlayers()) { try { p.setGameMode(org.bukkit.GameMode.SPECTATOR); } catch (Throwable ignored) {} } } } } catch (Throwable ignored) {}
                 for (java.util.UUID id : new java.util.HashSet<>(aliveByTeam.getOrDefault(lastTeam, java.util.Collections.emptySet()))) {
                     points.addPoints(id, config.scoreWinAlive);
                     var p = Bukkit.getPlayer(id);
@@ -380,6 +413,7 @@ public class UhcMeetupController implements GameController {
     public void stop(CommandSender initiator) {
         boolean wasRunning = running;
         running = false;
+        endingRound = false;
         try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
         try { if (activeTask != null) activeTask.cancel(); } catch (Throwable ignored) {}
         // Teleport/reset everyone out of any UHC round worlds, then unload/delete them

@@ -85,19 +85,19 @@ public class SoftBorder {
                     if (!plugin.isEnabled() || Bukkit.getWorld(world.getUID()) == null) { cancel(); return; }
                     if (t > durationTicks) t = durationTicks; // hold at end
                     double radius = radiusAt(t);
-                    // Render a verticalized ring: taller columns and higher angular density
-                    int points = 96; // more points around the circle
-                    double yStart = center.getY() - 6.0;
-                    double yEnd = center.getY() + 20.0;
-                    int ySteps = 14; // ~2 blocks below to ~20 above, ~1-2 block spacing
-                    Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(255, 64, 64), 1.1f);
+                    // Render a highly visible vertical ring: dense columns from Y=50 to Y=120
+                    int points = 144; // higher angular density
+                    double yStart = 50.0;
+                    double yEnd = 120.0;
+                    int ySteps = 36; // ~2 block spacing across the column
                     for (int i = 0; i < points; i++) {
                         double ang = (2 * Math.PI * i) / points;
                         double x = center.getX() + radius * Math.cos(ang);
                         double z = center.getZ() + radius * Math.sin(ang);
                         for (int s = 0; s < ySteps; s++) {
                             double yy = yStart + (yEnd - yStart) * (s / (double)(ySteps - 1));
-                            try { world.spawnParticle(Particle.DUST, x, yy, z, 1, 0, 0, 0, 0, dust, true); } catch (Throwable ignored) {}
+                            // END_ROD is bright and visible; spawn 2 per step for clarity
+                            try { world.spawnParticle(Particle.END_ROD, x, yy, z, 2, 0.0, 0.0, 0.0, 0.0, null, true); } catch (Throwable ignored) {}
                         }
                     }
                     t += particlePeriod;
