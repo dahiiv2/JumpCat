@@ -131,7 +131,8 @@ public class UhcMeetupController implements GameController {
                     try { w.getChunkAt((int)Math.floor((tx + 0.5) / 16.0), (int)Math.floor((tz + 0.5) / 16.0)).load(true); } catch (Throwable ignored) {}
                     try { p.teleport(new org.bukkit.Location(w, tx + 0.5, ty, tz + 0.5)); } catch (Throwable ignored) {}
                     try { p.getInventory().clear(); p.getInventory().setArmorContents(null); } catch (Throwable ignored) {}
-                    p.setHealth(20.0); p.setFoodLevel(20); p.setSaturation(20);
+                    try { p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType())); } catch (Throwable ignored) {}
+                    try { p.setHealth(20.0); p.setFoodLevel(20); p.setSaturation(20); p.setLevel(0); p.setExp(0f); p.setTotalExperience(0); } catch (Throwable ignored) {}
                     p.setGameMode(org.bukkit.GameMode.SURVIVAL);
                     aliveAll.add(p.getUniqueId());
                     aliveByTeam.computeIfAbsent(key, k -> new java.util.HashSet<>()).add(p.getUniqueId());
