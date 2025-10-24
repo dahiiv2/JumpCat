@@ -16,6 +16,11 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.command.CommandSender;
 import org.bukkit.scheduler.BukkitRunnable;
 import net.kyori.adventure.text.Component;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionData;
+import org.bukkit.potion.PotionType;
 
 import java.util.*;
 
@@ -390,12 +395,12 @@ public class BattleBoxController implements GameController {
     private RoundKit generateRoundKit() {
         Random r = new Random();
         RoundKit k = new RoundKit();
-        // Armor pool: LEATHER/CHAINMAIL/IRON/NETHERITE; bias toward iron, rare netherite
-        Material[] helms = {Material.LEATHER_HELMET, Material.CHAINMAIL_HELMET, Material.IRON_HELMET, Material.NETHERITE_HELMET};
-        Material[] chests = {Material.LEATHER_CHESTPLATE, Material.CHAINMAIL_CHESTPLATE, Material.IRON_CHESTPLATE, Material.NETHERITE_CHESTPLATE};
-        Material[] legs = {Material.LEATHER_LEGGINGS, Material.CHAINMAIL_LEGGINGS, Material.IRON_LEGGINGS, Material.NETHERITE_LEGGINGS};
-        Material[] boots = {Material.LEATHER_BOOTS, Material.CHAINMAIL_BOOTS, Material.IRON_BOOTS, Material.NETHERITE_BOOTS};
-        int tier = weighted(r, new int[]{2,3,5,1}); // 0..3
+        // Armor pool: LEATHER/CHAINMAIL/IRON; remove netherite
+        Material[] helms = {Material.LEATHER_HELMET, Material.CHAINMAIL_HELMET, Material.IRON_HELMET};
+        Material[] chests = {Material.LEATHER_CHESTPLATE, Material.CHAINMAIL_CHESTPLATE, Material.IRON_CHESTPLATE};
+        Material[] legs = {Material.LEATHER_LEGGINGS, Material.CHAINMAIL_LEGGINGS, Material.IRON_LEGGINGS};
+        Material[] boots = {Material.LEATHER_BOOTS, Material.CHAINMAIL_BOOTS, Material.IRON_BOOTS};
+        int tier = weighted(r, new int[]{2,3,5}); // 0..2
         ItemStack helm = new ItemStack(helms[tier]);
         ItemStack chest = new ItemStack(chests[tier]);
         ItemStack leg = new ItemStack(legs[tier]);
@@ -404,16 +409,20 @@ public class BattleBoxController implements GameController {
         maybeEnchantArmor(r, helm); maybeEnchantArmor(r, chest); maybeEnchantArmor(r, leg); maybeEnchantArmor(r, boot);
         k.armor = new ItemStack[]{boot, leg, chest, helm};
 
-        // Weapon: sword or axe (stone/iron/diamond/netherite weighted), optional bow
-        boolean useAxe = r.nextInt(100) < 35; // 35% chance to give an axe instead of a sword
+        // Weapons: always include a sword; 30% chance to also include an axe (secondary)
         Material[] swords = {Material.STONE_SWORD, Material.IRON_SWORD, Material.DIAMOND_SWORD, Material.NETHERITE_SWORD};
         Material[] axes = {Material.STONE_AXE, Material.IRON_AXE, Material.DIAMOND_AXE, Material.NETHERITE_AXE};
         int meleeTier = weighted(r, new int[]{3,5,2,1});
-        ItemStack melee = new ItemStack(useAxe ? axes[meleeTier] : swords[meleeTier]);
-        maybeEnchantWeapon(r, melee);
+        ItemStack sword = new ItemStack(swords[meleeTier]);
+        maybeEnchantWeapon(r, sword);
 
         List<ItemStack> contents = new ArrayList<>();
-        contents.add(melee);
+        contents.add(sword);
+        if (r.nextInt(100) < 30) {
+            ItemStack axe = new ItemStack(axes[meleeTier]);
+            maybeEnchantWeapon(r, axe);
+            contents.add(axe);
+        }
         // Bow 60% chance
         if (r.nextInt(100) < 60) {
             ItemStack bow = new ItemStack(Material.BOW);
@@ -425,6 +434,24 @@ public class BattleBoxController implements GameController {
         contents.add(new ItemStack(Material.GOLDEN_APPLE, 1 + r.nextInt(4)));
         // Food
         contents.add(new ItemStack(Material.COOKED_BEEF, 8 + r.nextInt(9))); // 8-16
+        // Small utilities: 10% Wind Charge, 10% Splash Harming II
+        if (r.nextInt(100) < 10) {
+            try { contents.add(new ItemStack(Material.valueOf("WIND_CHARGE"), 1)); } catch (Throwable ignored) {}
+        }
+        if (r.nextInt(100) < 10) {
+            try {
+                ItemStack pot = new ItemStack(Material.SPLASH_POTION, 1);
+                PotionMeta pm = (PotionMeta) pot.getItemMeta();
+                boolean added = false;
+                if (pm != null) {
+                    try { pm.setBasePotionType(PotionType.HARMING); added = true; } catch (Throwable ignored) {}
+                    if (added) {
+                        pot.setItemMeta(pm);
+                    }
+                }
+                if (added) contents.add(pot); // only add if set to Harming I successfully
+            } catch (Throwable ignored) {}
+        }
 
         k.contents = contents;
         return k;
@@ -445,12 +472,10 @@ public class BattleBoxController implements GameController {
 
     private void maybeEnchantWeapon(Random r, ItemStack item) {
         if (r.nextInt(100) < 70) item.addUnsafeEnchantment(Enchantment.SHARPNESS, 1 + r.nextInt(2)); // Sharp I-II
-        if (r.nextInt(100) < 20) item.addUnsafeEnchantment(Enchantment.KNOCKBACK, 1); // KB I
     }
 
     private void maybeEnchantBow(Random r, ItemStack bow) {
         if (r.nextInt(100) < 60) bow.addUnsafeEnchantment(Enchantment.POWER, 1); // Power I
-        if (r.nextInt(100) < 30) bow.addUnsafeEnchantment(Enchantment.PUNCH, 1); // Punch I
     }
 
     private void applyKit(Player p, RoundKit kit) {
@@ -459,6 +484,7 @@ public class BattleBoxController implements GameController {
         inv.setArmorContents(null);
         inv.setArmorContents(kit.armor);
         for (ItemStack it : kit.contents) inv.addItem(it.clone());
+        try { p.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, 20*180, 0, true, false)); } catch (Throwable ignored) {}
     }
 
     // Utility: remove all items of a specific material from player inventory (main + offhand)

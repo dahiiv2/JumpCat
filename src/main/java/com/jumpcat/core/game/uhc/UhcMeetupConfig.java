@@ -59,6 +59,10 @@ public class UhcMeetupConfig {
             this.whitelistBlocks.add("CRAFTING_TABLE");
             this.whitelistBlocks.add("ENCHANTING_TABLE");
             this.whitelistBlocks.add("ANVIL");
+            this.whitelistBlocks.add("COBWEB");
+        } else {
+            // Backfill required blocks if missing
+            if (!this.whitelistBlocks.contains("COBWEB")) this.whitelistBlocks.add("COBWEB");
         }
         if (!file.exists()) {
             YamlConfiguration out = new YamlConfiguration();

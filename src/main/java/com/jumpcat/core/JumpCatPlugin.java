@@ -33,6 +33,10 @@ import com.jumpcat.core.game.uhc.UhcMeetupConfig;
 import com.jumpcat.core.game.uhc.UhcMeetupManager;
 import com.jumpcat.core.game.uhc.UhcMeetupController;
 import com.jumpcat.core.game.uhc.UhcMeetupListener;
+import com.jumpcat.core.game.tntrun.TntRunConfig;
+import com.jumpcat.core.game.tntrun.TntRunManager;
+import com.jumpcat.core.game.tntrun.TntRunController;
+import com.jumpcat.core.game.tntrun.TntRunListener;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -75,6 +79,11 @@ public final class JumpCatPlugin extends JavaPlugin {
         uhcCfg.load();
         UhcMeetupManager uhcMgr = new UhcMeetupManager(this, uhcCfg);
         this.gameRegistry.register("uhcmeetup", new UhcMeetupController(this, teamManager, pointsService, uhcCfg, uhcMgr));
+        // TNT Run registration
+        TntRunConfig tntrCfg = new TntRunConfig();
+        TntRunManager tntrMgr = new TntRunManager(this, tntrCfg);
+        TntRunController tntr = new TntRunController(this, this.teamManager, this.pointsService, tntrCfg, tntrMgr);
+        this.gameRegistry.register("tntrun", tntr);
         // UHC listener (block whitelist, powerless bows, etc.)
         getServer().getPluginManager().registerEvents(new UhcMeetupListener(uhcCfg), this);
         // Register listeners
@@ -85,6 +94,8 @@ public final class JumpCatPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BattleBoxListener(this.battleBoxManager, (BattleBoxController) this.gameRegistry.get("battlebox"), this.pointsService, this), this);
         // SkyWars listener
         getServer().getPluginManager().registerEvents(new com.jumpcat.core.game.skywars.SkyWarsListener(skywars, this.teamManager), this);
+        // TNT Run listener
+        getServer().getPluginManager().registerEvents(new TntRunListener(tntr, tntrCfg), this);
         getServer().getPluginManager().registerEvents(new KillFeedbackListener(this), this);
         // Centralized combat tracker for kills/deaths → sidebar K/D (active only when a game runs)
         getServer().getPluginManager().registerEvents(new CombatService(this.sidebarManager), this);

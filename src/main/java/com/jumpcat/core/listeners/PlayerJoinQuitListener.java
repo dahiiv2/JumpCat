@@ -21,9 +21,14 @@ public class PlayerJoinQuitListener implements Listener {
         sidebar.show(e.getPlayer());
         // If any game is running, joiners should be spectators regardless of world
         try {
-            boolean gameRunning = com.jumpcat.core.game.skywars.SkyWarsController.CURRENT != null
-                    || com.jumpcat.core.game.uhc.UhcMeetupController.CURRENT != null
-                    || com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT != null;
+            boolean gameRunning =
+                    (com.jumpcat.core.game.skywars.SkyWarsController.CURRENT != null)
+                    || (com.jumpcat.core.game.uhc.UhcMeetupController.CURRENT != null)
+                    || (com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT != null
+                            && (com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT.isRunning()
+                                || com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT.isSeriesRunning()))
+                    || (com.jumpcat.core.game.tntrun.TntRunController.CURRENT != null
+                            && com.jumpcat.core.game.tntrun.TntRunController.CURRENT.isRunning());
             if (gameRunning) {
                 try { e.getPlayer().getInventory().clear(); e.getPlayer().getInventory().setArmorContents(null); } catch (Throwable ignored) {}
                 e.getPlayer().setGameMode(org.bukkit.GameMode.SPECTATOR);
@@ -32,7 +37,7 @@ public class PlayerJoinQuitListener implements Listener {
             }
             // Fallback: if they logged directly into a game world by name
             String wn = e.getPlayer().getWorld() != null ? e.getPlayer().getWorld().getName() : "";
-            if (wn.startsWith("uhc_meetup_r") || wn.startsWith("skywars_r") || wn.equalsIgnoreCase("battle_box")) {
+            if (wn.startsWith("uhc_meetup_r") || wn.startsWith("skywars_r") || wn.startsWith("tntrun_r") || wn.equalsIgnoreCase("battle_box")) {
                 e.getPlayer().setGameMode(org.bukkit.GameMode.SPECTATOR);
             }
             // Battle Box series or match: if player logged into battle_box, keep them spectator

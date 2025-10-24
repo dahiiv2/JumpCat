@@ -4,6 +4,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import com.jumpcat.core.game.WorldUtil;
 
 public class GameCommand implements CommandExecutor {
     private final org.bukkit.plugin.Plugin plugin;
@@ -50,6 +51,8 @@ public class GameCommand implements CommandExecutor {
                             desc = ChatColor.GRAY + "Team arena duels in short rounds. Eliminate the other team to win."; break;
                         case "skywars":
                             desc = ChatColor.GRAY + "Fight other teams in floating islands with a shrinking border."; break;
+                        case "tntrun":
+                            desc = ChatColor.GRAY + "Running over land breaks it. Be the last player standing to win."; break;
                         default:
                             desc = ChatColor.GRAY + "A JumpCat mini-game. Good luck!"; break;
                     }
@@ -68,6 +71,8 @@ public class GameCommand implements CommandExecutor {
                 GameController c = registry.get(args[1]);
                 if (c == null) { sender.sendMessage(ChatColor.RED + "Unknown game: " + args[1]); return true; }
                 c.stop(sender);
+                // Fallback: ensure all players in any game world are reset and sent to lobby
+                try { globalCleanup(); } catch (Throwable ignored) {}
                 sender.sendMessage(ChatColor.YELLOW + "Stopped game: " + c.getId());
                 return true;
             }
@@ -90,5 +95,37 @@ public class GameCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.YELLOW + "/" + label + " start <id>" + ChatColor.WHITE + " - Start a game");
         sender.sendMessage(ChatColor.YELLOW + "/" + label + " stop <id>" + ChatColor.WHITE + " - Stop a game");
         sender.sendMessage(ChatColor.YELLOW + "/" + label + " status <id>" + ChatColor.WHITE + " - Show game status");
+    }
+
+    private void globalCleanup() {
+        org.bukkit.Location lobby = null;
+        try {
+            if (plugin instanceof com.jumpcat.core.JumpCatPlugin) {
+                var lm = ((com.jumpcat.core.JumpCatPlugin) plugin).getLobbyManager();
+                if (lm != null) lobby = lm.getLobbySpawn();
+            }
+        } catch (Throwable ignored) {}
+        if (lobby == null) {
+            try { var lw = org.bukkit.Bukkit.getWorld("lobby"); if (lw != null) lobby = lw.getSpawnLocation(); } catch (Throwable ignored) {}
+        }
+        if (lobby == null) lobby = org.bukkit.Bukkit.getWorlds().get(0).getSpawnLocation();
+        for (org.bukkit.World w : org.bukkit.Bukkit.getWorlds()) {
+            if (!com.jumpcat.core.game.WorldUtil.isAnyGameWorld(w)) continue;
+            for (org.bukkit.entity.Player p : w.getPlayers()) {
+                try {
+                    p.getInventory().clear();
+                    p.getInventory().setArmorContents(null);
+                    p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
+                    p.setHealth(20.0);
+                    p.setFoodLevel(20);
+                    p.setSaturation(20);
+                    p.setLevel(0);
+                    p.setExp(0f);
+                    p.setTotalExperience(0);
+                    p.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                    p.teleport(lobby);
+                } catch (Throwable ignored) {}
+            }
+        }
     }
 }

@@ -1,12 +1,12 @@
 package com.jumpcat.core.combat;
 
-import com.jumpcat.core.game.battlebox.BattleBoxController;
-import com.jumpcat.core.game.skywars.SkyWarsController;
-import com.jumpcat.core.game.uhc.UhcMeetupController;
+import com.jumpcat.core.game.WorldUtil;
 import com.jumpcat.core.scoreboard.SidebarManager;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
@@ -19,10 +19,39 @@ public class CombatService implements Listener {
         INSTANCE = this;
     }
 
-    private boolean anyGameRunning() {
-        return (SkyWarsController.CURRENT != null) ||
-               (UhcMeetupController.CURRENT != null) ||
-               (BattleBoxController.CURRENT != null);
+    private boolean anyGameRunning() { return WorldUtil.anyGameRunning(); }
+    private boolean inAnyGameWorld(org.bukkit.World w) { return WorldUtil.isAnyGameWorld(w); }
+
+    // Global weapon tuning: nerf axes and bows across all modes
+    @EventHandler
+    public void onGlobalDamage(EntityDamageByEntityEvent e) {
+        if (!anyGameRunning()) return;
+        if (!(e.getEntity() instanceof Player)) return;
+        org.bukkit.World w = e.getEntity().getWorld();
+        if (!inAnyGameWorld(w)) return;
+
+        // Projectile (arrow, crossbow) nerf
+        if (e.getDamager() instanceof org.bukkit.entity.Projectile) {
+            org.bukkit.entity.Projectile proj = (org.bukkit.entity.Projectile) e.getDamager();
+            if (proj instanceof org.bukkit.entity.AbstractArrow) {
+                double base = e.getDamage();
+                e.setDamage(base * 0.70); // 30% reduction
+            }
+            return;
+        }
+
+        // Melee axe nerf
+        if (e.getDamager() instanceof Player) {
+            Player attacker = (Player) e.getDamager();
+            Material m = attacker.getInventory().getItemInMainHand() != null ? attacker.getInventory().getItemInMainHand().getType() : null;
+            if (m != null) {
+                String name = m.name();
+                if (name.endsWith("_AXE")) {
+                    double base = e.getDamage();
+                    e.setDamage(base * 0.85); // 15% reduction
+                }
+            }
+        }
     }
 
     @EventHandler

@@ -106,6 +106,8 @@ public class SkyWarsController implements GameController {
         return ChatColor.GREEN + "Round " + (roundIndex+1) + "/" + config.getRounds();
     }
 
+    public boolean isRunning() { return running; }
+
     private void beginRound(CommandSender initiator) {
         if (!running) return;
         endingRound = false;

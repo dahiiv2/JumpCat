@@ -1,6 +1,6 @@
 name: JumpCat
 main: com.jumpcat.core.JumpCatPlugin
-version: 0.1.0
+version: "0.1.0"
 api-version: '1.21'
 load: POSTWORLD
 author: JumpCat

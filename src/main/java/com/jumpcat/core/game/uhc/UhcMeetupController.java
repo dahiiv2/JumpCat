@@ -278,9 +278,24 @@ public class UhcMeetupController implements GameController {
             // Bow (no power) + 20 arrows
             org.bukkit.inventory.ItemStack bow = new org.bukkit.inventory.ItemStack(org.bukkit.Material.BOW);
             org.bukkit.inventory.ItemStack arrows = new org.bukkit.inventory.ItemStack(org.bukkit.Material.ARROW, 20);
+            // Loaded crossbow (pre-charged with 1 arrow)
+            org.bukkit.inventory.ItemStack crossbow = new org.bukkit.inventory.ItemStack(org.bukkit.Material.CROSSBOW);
+            try {
+                org.bukkit.inventory.meta.CrossbowMeta cm = (org.bukkit.inventory.meta.CrossbowMeta) crossbow.getItemMeta();
+                if (cm != null) {
+                    cm.addChargedProjectile(new org.bukkit.inventory.ItemStack(org.bukkit.Material.ARROW, 1));
+                    crossbow.setItemMeta(cm);
+                }
+            } catch (Throwable ignored) {}
             // Consumables
             org.bukkit.inventory.ItemStack gaps = new org.bukkit.inventory.ItemStack(org.bukkit.Material.GOLDEN_APPLE, 6);
             org.bukkit.inventory.ItemStack steak = new org.bukkit.inventory.ItemStack(org.bukkit.Material.COOKED_BEEF, 16);
+            // Utilities
+            org.bukkit.inventory.ItemStack water1 = new org.bukkit.inventory.ItemStack(org.bukkit.Material.WATER_BUCKET);
+            org.bukkit.inventory.ItemStack water2 = new org.bukkit.inventory.ItemStack(org.bukkit.Material.WATER_BUCKET);
+            org.bukkit.inventory.ItemStack lava1 = new org.bukkit.inventory.ItemStack(org.bukkit.Material.LAVA_BUCKET);
+            org.bukkit.inventory.ItemStack lava2 = new org.bukkit.inventory.ItemStack(org.bukkit.Material.LAVA_BUCKET);
+            org.bukkit.inventory.ItemStack webs = new org.bukkit.inventory.ItemStack(org.bukkit.Material.COBWEB, 4);
             // Tools
             org.bukkit.inventory.ItemStack dpick = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND_PICKAXE);
             org.bukkit.inventory.ItemStack daxe = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND_AXE);
@@ -296,7 +311,7 @@ public class UhcMeetupController implements GameController {
             org.bukkit.inventory.PlayerInventory inv = p.getInventory();
             inv.clear(); inv.setArmorContents(null);
             inv.setHelmet(helm); inv.setChestplate(chest); inv.setLeggings(legs); inv.setBoots(boots);
-            inv.addItem(sword, bow, arrows, gaps, steak, dpick, daxe, planks, tables, apples, enchantTable, anvil, lapis);
+            inv.addItem(sword, bow, arrows, crossbow, gaps, steak, water1, water2, lava1, lava2, webs, dpick, daxe, planks, tables, apples, enchantTable, anvil, lapis);
         }
     }
 
@@ -441,6 +456,8 @@ public class UhcMeetupController implements GameController {
         if (!running) return "Idle";
         return "Running round " + (roundIndex+1);
     }
+
+    public boolean isRunning() { return running; }
 
     private void showTeamStandings() {
         java.util.Map<String, Integer> teamTotals = new java.util.LinkedHashMap<>();
