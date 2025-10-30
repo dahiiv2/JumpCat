@@ -62,7 +62,7 @@ public class TntRunController implements GameController {
         try { var lm = ((com.jumpcat.core.JumpCatPlugin)plugin).getLobbyManager(); if (lm != null) lobby = lm.getLobbySpawn(); } catch (Throwable ignored) {}
         if (lobby == null) { try { var lw = Bukkit.getWorld("lobby"); if (lw != null) lobby = lw.getSpawnLocation(); } catch (Throwable ignored) {} }
         if (lobby == null) lobby = Bukkit.getWorlds().get(0).getSpawnLocation();
-        if (w != null) for (Player p : w.getPlayers()) { safeReset(p); p.teleport(lobby); }
+        if (w != null) for (Player p : w.getPlayers()) { try { p.setCollidable(true); } catch (Throwable ignored) {} safeReset(p); p.teleport(lobby); }
         if (currentWorldName != null) manager.unloadAndDelete(currentWorldName);
         currentWorldName = null;
         try { ((com.jumpcat.core.JumpCatPlugin)plugin).getSidebarManager().setGameStatus(getDisplayName(), "-", false); } catch (Throwable ignored) {}
@@ -109,6 +109,8 @@ public class TntRunController implements GameController {
             try { p.teleport(spawn); } catch (Throwable ignored) {}
             prepareParticipant(p);
         }
+        // Disable collision for all players in this TNT Run world for the entire game duration
+        try { for (Player p : w.getPlayers()) { p.setCollidable(false); } } catch (Throwable ignored) {}
         // Capture initial participant count AFTER filtering offline players
         initialParticipants = aliveAll.size();
 
@@ -266,6 +268,7 @@ public class TntRunController implements GameController {
                         if (w2 != null) {
                             for (org.bukkit.entity.Player p : w2.getPlayers()) {
                                 try {
+                                    p.setCollidable(true);
                                     p.getInventory().clear(); p.getInventory().setArmorContents(null); p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
                                     p.setHealth(20.0); p.setFoodLevel(20); p.setSaturation(20); p.setLevel(0); p.setExp(0f); p.setTotalExperience(0);
                                     p.setGameMode(GameMode.ADVENTURE); p.teleport(lobby);

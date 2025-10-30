@@ -26,6 +26,8 @@ public class SkyWarsController implements GameController {
     private String currentWorldName = null;
     private boolean endingRound = false;
     private com.jumpcat.core.border.SoftBorder softBorder = null;
+    // Pre-start freeze window end timestamp (ms). 0 = not freezing
+    private volatile long preStartUntilMs = 0L;
 
     private final Map<String, Set<UUID>> aliveByTeam = new HashMap<>();
     private final Set<UUID> aliveAll = new HashSet<>();
@@ -108,6 +110,15 @@ public class SkyWarsController implements GameController {
 
     public boolean isRunning() { return running; }
 
+    public boolean isPreStartActive(org.bukkit.World w) {
+        if (!running) return false;
+        if (w == null) return false;
+        if (currentWorldName == null) return false;
+        if (!w.getName().equals(currentWorldName)) return false;
+        long until = preStartUntilMs;
+        return until > 0 && System.currentTimeMillis() < until;
+    }
+
     private void beginRound(CommandSender initiator) {
         if (!running) return;
         endingRound = false;
@@ -178,13 +189,24 @@ public class SkyWarsController implements GameController {
         // Pre-start freeze (5s) then Grace → enable PVP; start shrinks 30s after grace ends
         final int preStart = 5;
         final int grace = config.getGraceSeconds();
-        // Freeze players during pre-start
+        // Freeze players during pre-start (no movement + no collision)
         try {
-            for (Player p : w.getPlayers()) p.setWalkSpeed(0.0f);
+            for (Player p : w.getPlayers()) {
+                p.setWalkSpeed(0.0f);
+                p.setCollidable(false);
+            }
         } catch (Throwable ignored) {}
+        // Mark freeze active so listener cancels all movement including jumps
+        this.preStartUntilMs = System.currentTimeMillis() + preStart * 1000L;
         // Unfreeze after pre-start
         new BukkitRunnable(){ @Override public void run(){
-            try { for (Player p : w.getPlayers()) p.setWalkSpeed(0.2f); } catch (Throwable ignored) {}
+            try {
+                for (Player p : w.getPlayers()) {
+                    p.setWalkSpeed(0.2f);
+                    p.setCollidable(true);
+                }
+            } catch (Throwable ignored) {}
+            preStartUntilMs = 0L;
         } }.runTaskLater(plugin, preStart * 20L);
         // Schedule grace end after pre-start + grace
         new BukkitRunnable(){ @Override public void run(){ try { w.setPVP(true); } catch (Throwable ignored) {}

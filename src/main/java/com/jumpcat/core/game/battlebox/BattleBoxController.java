@@ -517,6 +517,13 @@ public class BattleBoxController implements GameController {
 
     private void startCountdownAndRun(CommandSender initiator, BattleBoxRuntime rt, String teamA, String teamB) {
         // 10s countdown freeze (listener uses rt.live=false to block movement/damage)
+        // Disable player collision during freeze
+        try {
+            for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) {
+                Player p = Bukkit.getPlayer(id);
+                if (p != null) p.setCollidable(false);
+            }
+        } catch (Throwable ignored) {}
         new BukkitRunnable() {
             int t = 10;
             @Override public void run() {
@@ -535,6 +542,13 @@ public class BattleBoxController implements GameController {
 
     private void beginLive(BattleBoxRuntime rt, String teamA, String teamB) {
         rt.live = true;
+        // Re-enable collision when the round goes live
+        try {
+            for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) {
+                Player p = Bukkit.getPlayer(id);
+                if (p != null) p.setCollidable(true);
+            }
+        } catch (Throwable ignored) {}
         // Generate a single random kit for all players in this match
         RoundKit kit = generateRoundKit();
         for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) {
