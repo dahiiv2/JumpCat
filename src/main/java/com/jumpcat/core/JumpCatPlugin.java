@@ -197,6 +197,14 @@ public final class JumpCatPlugin extends JavaPlugin {
             com.jumpcat.core.commands.MsgCommand mc = new com.jumpcat.core.commands.MsgCommand();
             rCmd.setExecutor(mc);
         }
+        // Moderation (ban/mute/kick/unban/unmute)
+        PluginCommand modCmd = getCommand("moderation");
+        if (modCmd != null) {
+            com.jumpcat.core.commands.ModerationCommand mc = new com.jumpcat.core.commands.ModerationCommand();
+            modCmd.setExecutor(mc);
+            modCmd.setTabCompleter(mc);
+        }
+        getServer().getPluginManager().registerEvents(new com.jumpcat.core.commands.ModerationListener(), this);
     }
 
     @Override
