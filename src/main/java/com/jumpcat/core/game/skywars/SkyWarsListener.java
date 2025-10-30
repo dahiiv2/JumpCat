@@ -17,6 +17,17 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.entity.TNTPrimed;
+import org.bukkit.entity.TNTMinecart;
+import org.bukkit.entity.Creeper;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.entity.EntitySpawnEvent;
+import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.metadata.MetadataValue;
+import org.bukkit.Location;
+import org.bukkit.Bukkit;
+
+import java.util.UUID;
 
 public class SkyWarsListener implements Listener {
     private final SkyWarsController controller;
@@ -26,6 +37,10 @@ public class SkyWarsListener implements Listener {
     private final java.util.Map<java.util.UUID, LastHit> lastDamager = new java.util.concurrent.ConcurrentHashMap<>();
     private static class HitAgg { double sum; long last; HitAgg(double s,long l){ sum=s; last=l; } }
     private final java.util.Map<java.util.UUID, java.util.Map<java.util.UUID, HitAgg>> damageDealt = new java.util.concurrent.ConcurrentHashMap<>(); // victim -> (attacker -> agg)
+
+    // Helper for guaranteed spawn-egg creeper owner
+    private final java.util.Map<Location, UUID> pendingEggSpawns = new java.util.HashMap<>();
+    private final java.util.Map<Location, Long> pendingEggTimes = new java.util.HashMap<>();
 
     public SkyWarsListener(SkyWarsController controller, TeamManager teams) {
         this.controller = controller;
@@ -187,24 +202,89 @@ public class SkyWarsListener implements Listener {
         return n.endsWith("_TERRACOTTA") || n.equals("TERRACOTTA");
     }
 
-    // Track damage and cancel when PvP disabled
+    // Helper: Set metadata for entity ownership
+    private void setSkywarsSpawner(org.bukkit.entity.Entity entity, Player owner) {
+        try { entity.setMetadata("skywars_spawner", new FixedMetadataValue(com.jumpcat.core.JumpCatPlugin.getPlugin(com.jumpcat.core.JumpCatPlugin.class), owner.getUniqueId().toString())); } catch (Throwable ignored) {}
+    }
+    private UUID getSkywarsSpawner(org.bukkit.entity.Entity entity) {
+        try {
+            if (entity.hasMetadata("skywars_spawner")) {
+                for (MetadataValue v : entity.getMetadata("skywars_spawner")) {
+                    if (v.getOwningPlugin().getName().equals("JumpCat")) {
+                        return UUID.fromString(v.asString());
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    // 1. TNT Minecart: track placer when spawned by player
+    @EventHandler(ignoreCancelled = true)
+    public void onTntMinecartPlace(PlayerInteractEntityEvent e) {
+        if (!(e.getRightClicked() instanceof TNTMinecart)) return;
+        if (!inSkywars(e.getRightClicked().getWorld())) return;
+        setSkywarsSpawner(e.getRightClicked(), e.getPlayer());
+    }
+
+    @EventHandler
+    public void onPlayerUseSpawnEgg(org.bukkit.event.player.PlayerInteractEvent event) {
+        if (event.getItem() == null || event.getItem().getType() != Material.CREEPER_SPAWN_EGG) return;
+        if (!inSkywars(event.getPlayer().getWorld())) return;
+        Location loc;
+        if (event.getClickedBlock() != null) {
+            loc = event.getClickedBlock().getRelative(event.getBlockFace()).getLocation();
+        } else {
+            loc = event.getPlayer().getLocation();
+        }
+        // We allow a small location fuzz since the spawn may be +/-1 block
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dz = -1; dz <= 1; dz++)
+                    pendingEggSpawns.put(loc.clone().add(dx, dy, dz), event.getPlayer().getUniqueId());
+        pendingEggTimes.put(loc, System.currentTimeMillis());
+    }
+
+    @EventHandler
+    public void onCreeperEgg(EntitySpawnEvent e) {
+        if (e.getEntity() instanceof Creeper) {
+            Creeper creeper = (Creeper) e.getEntity();
+            if (inSkywars(creeper.getWorld()) && creeper.getSpawnReason() == org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWN_EGG) {
+                // Guarantee: check pendingEggSpawns for matching location (within tick)
+                Location cl = creeper.getLocation().getBlock().getLocation();
+                UUID owner = null;
+                for (int dx = -1; dx <= 1 && owner == null; dx++)
+                    for (int dy = -1; dy <= 1 && owner == null; dy++)
+                        for (int dz = -1; dz <= 1 && owner == null; dz++) {
+                            Location test = cl.clone().add(dx, dy, dz);
+                            if (pendingEggSpawns.containsKey(test) && System.currentTimeMillis() - pendingEggTimes.getOrDefault(test, 0L) < 1000L) {//1s fudge
+                                owner = pendingEggSpawns.get(test);
+                                pendingEggSpawns.remove(test);
+                                pendingEggTimes.remove(test);
+                            }
+                        }
+                if (owner != null) setSkywarsSpawner(creeper, Bukkit.getPlayer(owner));
+            }
+        }
+    }
+
+    // 3. KILL ATTRIBUTION
+    @Override
     @EventHandler
     public void onDamage(EntityDamageByEntityEvent e) {
         if (!(e.getEntity() instanceof Player)) return;
         Player victim = (Player) e.getEntity();
         if (!inSkywars(victim.getWorld())) return;
         if (e.isCancelled()) return;
-        
-        // Handle player vs player damage
+
+        // Existing player vs player & projectile logic:
         if (e.getDamager() instanceof Player) {
             Player attacker = (Player) e.getDamager();
             lastDamager.put(victim.getUniqueId(), new LastHit(attacker.getUniqueId(), System.currentTimeMillis()));
             double dmg = e.getFinalDamage();
             java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
             m.merge(attacker.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
-        }
-        // Handle arrow damage (bow shots)
-        else if (e.getDamager() instanceof org.bukkit.entity.Projectile) {
+        } else if (e.getDamager() instanceof org.bukkit.entity.Projectile) {
             org.bukkit.entity.Projectile projectile = (org.bukkit.entity.Projectile) e.getDamager();
             if (projectile.getShooter() instanceof Player) {
                 Player shooter = (Player) projectile.getShooter();
@@ -213,6 +293,51 @@ public class SkyWarsListener implements Listener {
                 java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
                 m.merge(shooter.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
             }
+        // TNTPrimed: credit source if a player
+        } else if (e.getDamager() instanceof TNTPrimed) {
+            TNTPrimed tnt = (TNTPrimed) e.getDamager();
+            if (tnt.getSource() instanceof Player) {
+                Player explosiveOwner = (Player) tnt.getSource();
+                lastDamager.put(victim.getUniqueId(), new LastHit(explosiveOwner.getUniqueId(), System.currentTimeMillis()));
+                double dmg = e.getFinalDamage();
+                java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
+                m.merge(explosiveOwner.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+            }
+        // TNTMinecart: use metadata for source
+        } else if (e.getDamager() instanceof TNTMinecart) {
+            TNTMinecart cart = (TNTMinecart) e.getDamager();
+            UUID placerId = getSkywarsSpawner(cart);
+            if (placerId != null) {
+                lastDamager.put(victim.getUniqueId(), new LastHit(placerId, System.currentTimeMillis()));
+                double dmg = e.getFinalDamage();
+                java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
+                m.merge(placerId, new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+            }
+        // Creeper: use metadata for source (only for those spawned by egg)
+        } else if (e.getDamager() instanceof Creeper) {
+            Creeper creeper = (Creeper) e.getDamager();
+            UUID placerId = getSkywarsSpawner(creeper);
+            if (placerId != null) {
+                lastDamager.put(victim.getUniqueId(), new LastHit(placerId, System.currentTimeMillis()));
+                double dmg = e.getFinalDamage();
+                java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
+                m.merge(placerId, new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+            }
+        }
+    }
+
+    // Custom: Stronger TNT and Creeper damage (NEEDS TESTING)
+    @EventHandler
+    public void onTntAndCreeperDamage(EntityDamageByEntityEvent e) {
+        if (!(e.getEntity() instanceof Player)) return;
+        if (!inSkywars(e.getEntity().getWorld())) return;
+        if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper) {
+            // Just scale by 2.2x, no minimum floor.
+            double base = e.getDamage();
+            double scaled = base * 2.2;
+             // ALTERNATIVE : double scaled = Math.max(base * 2.2, 14.0) 
+             // TNT / Creepers do at least 14 damage points (7 hearts), or if the damage would be more, does the higher value
+            e.setDamage(scaled);
         }
     }
 
