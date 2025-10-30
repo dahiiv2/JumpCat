@@ -53,6 +53,10 @@ public class SkyWarsManager {
         return Bukkit.getWorld(templateWorld);
     }
 
+    public void setTemplateWorld(String name) {
+        if (name != null && !name.isEmpty()) this.templateWorld = name;
+    }
+
     public Location getTemplateSpawn() {
         World w = getTemplateWorld();
         if (w == null) return null;

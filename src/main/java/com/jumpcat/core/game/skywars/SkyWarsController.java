@@ -20,6 +20,7 @@ public class SkyWarsController implements GameController {
     private final TeamManager teams;
     private final SkyWarsConfig config;
     private final SkyWarsManager manager;
+    private final SkyWarsMapsConfig maps;
 
     private boolean running = false;
     private int roundIndex = 0;
@@ -37,6 +38,7 @@ public class SkyWarsController implements GameController {
         this.teams = teams;
         this.config = new SkyWarsConfig();
         this.manager = new SkyWarsManager(plugin);
+        this.maps = new SkyWarsMapsConfig(plugin);
     }
 
     @Override
@@ -122,6 +124,9 @@ public class SkyWarsController implements GameController {
     private void beginRound(CommandSender initiator) {
         if (!running) return;
         endingRound = false;
+        // Pick a template for this round and set manager source
+        SkyWarsMapsConfig.Template tpl = maps.pickNextTemplate(new java.util.Random());
+        manager.setTemplateWorld(tpl.name);
         String dest = "skywars_r" + (roundIndex+1);
         boolean cloned = manager.cloneTemplate(dest);
         if (!cloned) { initiator.sendMessage(ChatColor.RED + "Failed to clone template world '" + config.getTemplateWorld() + "'."); stop(initiator); return; }
@@ -150,8 +155,8 @@ public class SkyWarsController implements GameController {
             Bukkit.broadcastMessage(ChatColor.YELLOW + "SkyWars supports max 12 teams per round; extra teams won't join this match.");
             teamKeys = teamKeys.subList(0, 12);
         }
-        // Shuffle spawns
-        List<SkyWarsConfig.Spawn> spawns = new ArrayList<>(config.getSpawnPoints());
+        // Load spawns for picked template and shuffle
+        List<SkyWarsConfig.Spawn> spawns = new ArrayList<>(maps.getSpawnsFor(tpl.name));
         Collections.shuffle(spawns, new Random());
 
         int used = Math.min(teamKeys.size(), spawns.size());
