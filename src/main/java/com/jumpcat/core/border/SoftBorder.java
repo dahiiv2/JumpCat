@@ -26,7 +26,6 @@ public class SoftBorder {
     private BukkitRunnable particleTask;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private static final Particle.DustOptions BORDER_DUST = new Particle.DustOptions(Color.RED, 1.0f);
-    private final java.util.Map<java.util.UUID, org.bukkit.boss.BossBar> bars = new java.util.HashMap<>();
 
     public SoftBorder(Plugin plugin, World world, Location center,
                       double startRadius, double endRadius, int durationTicks,
@@ -88,36 +87,14 @@ public class SoftBorder {
                     if (!plugin.isEnabled() || Bukkit.getWorld(world.getUID()) == null) { cancel(); return; }
                     if (t > durationTicks) t = durationTicks; // hold at end
                     double radius = radiusAt(t);
-                    // Per-player: only if within ~25 blocks of the border ring, and only send to that player
+                    // Per-player: render when within ~160 blocks of the ring, and only send to that player
                     for (Player p : world.getPlayers()) {
                         Location loc = p.getLocation();
                         double dx = loc.getX() - center.getX();
                         double dz = loc.getZ() - center.getZ();
                         double dist = Math.sqrt(dx*dx + dz*dz);
                         double delta = Math.abs(dist - radius);
-                        // BossBar indicator within 30 blocks of the ring
-                        try {
-                            double near = 30.0;
-                            if (delta <= near) {
-                                org.bukkit.boss.BossBar bar = bars.get(p.getUniqueId());
-                                String title = org.bukkit.ChatColor.RED + "Border: " + org.bukkit.ChatColor.WHITE + (int)Math.round(delta) + "m";
-                                if (bar == null) {
-                                    bar = org.bukkit.Bukkit.createBossBar(title, org.bukkit.boss.BarColor.RED, org.bukkit.boss.BarStyle.SEGMENTED_10);
-                                    bar.setProgress(Math.max(0.0, Math.min(1.0, 1.0 - (delta / near))));
-                                    bar.addPlayer(p);
-                                    bars.put(p.getUniqueId(), bar);
-                                } else {
-                                    bar.setTitle(title);
-                                    bar.setProgress(Math.max(0.0, Math.min(1.0, 1.0 - (delta / near))));
-                                    if (!bar.getPlayers().contains(p)) bar.addPlayer(p);
-                                }
-                                bar.setVisible(true);
-                            } else {
-                                org.bukkit.boss.BossBar bar = bars.remove(p.getUniqueId());
-                                if (bar != null) { bar.removeAll(); }
-                            }
-                        } catch (Throwable ignored) {}
-                        if (delta > 20.0) continue;
+                        if (delta > 160.0) continue;
                         if (dist < 1e-6) continue; // avoid NaN / zero division at exact center
                         double scale = radius / dist;
                         double x = center.getX() + dx * scale;
@@ -125,22 +102,23 @@ public class SoftBorder {
                         double y = Math.max(50.0, Math.min(130.0, loc.getY() + 0.5));
                         try {
                             org.bukkit.Particle pr = org.bukkit.Particle.valueOf("REDSTONE");
-                            // Draw a much wider arc along the tangent with five vertical rows for very clear visibility
-                            // Tangent unit vector: (-dz/dist, dx/dist)
-                            double tx = -dz / dist, tz = dx / dist;
-                            double[] offs = new double[]{ -8.0, -6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0 }; // much wider arc
-                            double y2 = Math.max(50.0, Math.min(130.0, y + 1.0));
-                            double y3 = Math.max(50.0, Math.min(130.0, y + 2.0));
-                            double y4 = Math.max(50.0, Math.min(130.0, y + 3.0));
-                            double y5 = Math.max(50.0, Math.min(130.0, y + 4.0));
-                            for (double o : offs) {
-                                double px = x + tx * o;
-                                double pz = z + tz * o;
-                                p.spawnParticle(pr, px, y,  pz, 1, 0.0, 0.0, 0.0, 0.0, BORDER_DUST);
-                                p.spawnParticle(pr, px, y2, pz, 1, 0.0, 0.0, 0.0, 0.0, BORDER_DUST);
-                                p.spawnParticle(pr, px, y3, pz, 1, 0.0, 0.0, 0.0, 0.0, BORDER_DUST);
-                                p.spawnParticle(pr, px, y4, pz, 1, 0.0, 0.0, 0.0, 0.0, BORDER_DUST);
-                                p.spawnParticle(pr, px, y5, pz, 1, 0.0, 0.0, 0.0, 0.0, BORDER_DUST);
+                            // Render a true circular arc around the closest point on the ring.
+                            // Center angle at the player's projection, sample +/- angular offsets so the shape is curved, not a wall.
+                            double baseAngle = Math.atan2(dz, dx);
+                            // Desired half-width in blocks ~32 => convert to angle using current radius
+                            double maxAngle = Math.min(Math.PI, 32.0 / Math.max(1.0, radius));
+                            // Step so adjacent samples are ~2 blocks apart along the arc
+                            double step = Math.max(Math.toRadians(1.0), 2.0 / Math.max(1.0, radius));
+                            int rows = 30;
+                            double startRow = -((rows - 1) / 2.0);
+                            for (double da = -maxAngle; da <= maxAngle; da += step) {
+                                double ang = baseAngle + da;
+                                double px = center.getX() + Math.cos(ang) * radius;
+                                double pz = center.getZ() + Math.sin(ang) * radius;
+                                for (int ry = 0; ry < rows; ry++) {
+                                    double yy = Math.max(50.0, Math.min(130.0, y + startRow + ry));
+                                    p.spawnParticle(pr, px, yy, pz, 1, 0.0, 0.0, 0.0, 0.0, BORDER_DUST);
+                                }
                             }
                         } catch (Throwable ignored) {}
                     }
@@ -155,10 +133,5 @@ public class SoftBorder {
         if (!running.compareAndSet(true, false)) return;
         try { if (enforceTask != null) enforceTask.cancel(); } catch (Throwable ignored) {}
         try { if (particleTask != null) particleTask.cancel(); } catch (Throwable ignored) {}
-        // Cleanup any active bossbars
-        try { for (org.bukkit.boss.BossBar b : new java.util.ArrayList<>(bars.values())) { try { b.removeAll(); } catch (Throwable ignored) {} } } catch (Throwable ignored) {}
-        try { bars.clear(); } catch (Throwable ignored) {}
     }
-
-    
 }

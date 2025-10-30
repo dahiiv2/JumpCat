@@ -38,7 +38,7 @@ public class SidebarManager {
             Scoreboard s = Bukkit.getScoreboardManager().getNewScoreboard();
             createObjective(s);
             createBelowNameHealth(s);
-            // Clone teams so tab prefixes/colors work on this board
+            // Clone teams into this per-player board so TAB/nametag show correctly
             if (teamManager != null) try { teamManager.applyToScoreboard(s); } catch (Throwable ignored) {}
             return s;
         });
@@ -62,7 +62,7 @@ public class SidebarManager {
         });
         // Ensure the player is actually using our scoreboard
         try { p.setScoreboard(sb); } catch (Throwable ignored) {}
-        // Always mirror latest team assignments/colors into this board so TAB/nametag stay correct
+        // Keep teams in sync with latest roster/colors
         if (teamManager != null) try { teamManager.applyToScoreboard(sb); } catch (Throwable ignored) {}
         Objective obj = sb.getObjective("jumpcat");
         if (obj == null) {

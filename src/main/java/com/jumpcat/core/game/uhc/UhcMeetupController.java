@@ -29,6 +29,8 @@ public class UhcMeetupController implements GameController {
     private com.jumpcat.core.border.SoftBorder softBorder = null;
     private com.jumpcat.core.border.SoftBorder graceBorder = null; // particles during grace
     private boolean endingRound = false;
+    private BukkitRunnable ceilTask = null;
+    private BukkitRunnable actionBarTask = null;
     private final java.util.Map<String, java.util.Set<java.util.UUID>> aliveByTeam = new java.util.HashMap<>();
     private final java.util.Set<java.util.UUID> aliveAll = new java.util.HashSet<>();
     private final java.util.List<java.util.UUID> carryOver = new java.util.ArrayList<>();
@@ -82,8 +84,8 @@ public class UhcMeetupController implements GameController {
         try { w.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false); } catch (Throwable ignored) {}
         try { w.setGameRule(org.bukkit.GameRule.RANDOM_TICK_SPEED, 0); } catch (Throwable ignored) {}
         int teamCount = 0; for (String key : teams.listTeamKeys()) { if (!teams.getTeamMembers(key).isEmpty()) teamCount++; }
-        // Choose scatter radius first, then set border diameter to enclose it (account for -10 margin in scatter formula)
-        int desiredScatterRadius = config.borderBase + config.borderPerTeam * teamCount; // adds per team
+        // Scatter radius formula: 50 + 20 per extra team after 2 (i.e., 2 teams -> 50, 3 -> 70, ...)
+        int desiredScatterRadius = 50 + 20 * Math.max(0, teamCount - 2);
         int diameter = Math.max(config.finalDiameter, 2 * (desiredScatterRadius + 10));
         manager.setupBorder(w, center, diameter);
         // Make vanilla border non-intrusive; SoftBorder will enforce
@@ -204,15 +206,24 @@ public class UhcMeetupController implements GameController {
         // Schedule Y-ceiling shrink (to 80) then hold last minute
         final int ceilStart = config.yCeilStart;
         final int ceilEnd = config.yCeilEnd;
-        new BukkitRunnable(){ int t=0; @Override public void run(){ if (!running) { cancel(); return; } if (t <= ceilTicks) {
-            double f = Math.min(1.0, (double)t/ceilTicks); int y = (int)Math.round(ceilStart + (ceilEnd - ceilStart) * f); UhcMeetupListener.setCeilingY(y);
-        } else { UhcMeetupListener.setCeilingY(ceilEnd); }
-        t+=20; if (t >= totalTicks) { cancel(); roundTimerFinish(); } } }.runTaskTimer(plugin, 0L, 20L);
+        // Cancel any previous ceiling/action tasks from prior rounds
+        try { if (ceilTask != null) ceilTask.cancel(); } catch (Throwable ignored) {}
+        try { if (actionBarTask != null) actionBarTask.cancel(); } catch (Throwable ignored) {}
+
+        final String roundWorld = this.currentWorldName;
+        ceilTask = new BukkitRunnable(){ int t=0; @Override public void run(){
+            if (!running || roundWorld == null || !roundWorld.equals(currentWorldName)) { cancel(); return; }
+            if (t <= ceilTicks) {
+                double f = Math.min(1.0, (double)t/ceilTicks); int y = (int)Math.round(ceilStart + (ceilEnd - ceilStart) * f); UhcMeetupListener.setCeilingY(y);
+            } else { UhcMeetupListener.setCeilingY(ceilEnd); }
+            t+=20; if (t >= totalTicks) { cancel(); roundTimerFinish(); }
+        } };
+        ceilTask.runTaskTimer(plugin, 0L, 20L);
 
         // Action bar: show Y-cap, soft border radius, and remaining time every second
-        new BukkitRunnable(){ int remaining = Math.max(0, config.shrinkSeconds); @Override public void run(){
-            if (!running || w == null || !w.isChunkLoaded(w.getSpawnLocation().getBlockX()>>4, w.getSpawnLocation().getBlockZ()>>4)) { if (!running) cancel(); }
-            if (!running) { cancel(); return; }
+        actionBarTask = new BukkitRunnable(){ int remaining = Math.max(0, config.shrinkSeconds); @Override public void run(){
+            if (!running || roundWorld == null || !roundWorld.equals(currentWorldName)) { cancel(); return; }
+            if (w == null || !w.isChunkLoaded(w.getSpawnLocation().getBlockX()>>4, w.getSpawnLocation().getBlockZ()>>4)) { /* keep running but skip this tick */ }
             int ycap = UhcMeetupListener.getCeilingY();
             // Compute current radius from schedule
             double startRadius = Math.max(1.0, start / 2.0);
@@ -227,7 +238,8 @@ public class UhcMeetupController implements GameController {
                 try { p.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR, new net.md_5.bungee.api.chat.TextComponent(msg)); } catch (Throwable ignored) {}
             }
             remaining--; if (remaining < 0) { cancel(); }
-        } }.runTaskTimer(plugin, 0L, 20L);
+        } };
+        actionBarTask.runTaskTimer(plugin, 0L, 20L);
     }
 
     private void roundTimerFinish() {
@@ -318,6 +330,8 @@ public class UhcMeetupController implements GameController {
     private void endRound(boolean aborted) {
         if (!running) return;
         try { if (softBorder != null) softBorder.stop(); } catch (Throwable ignored) {} finally { softBorder = null; }
+        try { if (ceilTask != null) ceilTask.cancel(); } catch (Throwable ignored) {} finally { ceilTask = null; }
+        try { if (actionBarTask != null) actionBarTask.cancel(); } catch (Throwable ignored) {} finally { actionBarTask = null; }
         String prevWorld = currentWorldName;
         if (roundIndex == 1) {
             // Final cleanup after Round 2: show team standings (points), then teleport to lobby and unload
@@ -384,6 +398,8 @@ public class UhcMeetupController implements GameController {
     // Called by listener when a participant dies or logs out
     public void onPlayerDeath(java.util.UUID victimId, java.util.UUID killerId) {
         if (!running) return;
+        // Ignore if already eliminated (e.g., spectator quitting)
+        if (!aliveAll.contains(victimId)) return;
         // Award killer points (message handled in listener for context-specific suffix)
         if (killerId != null) {
             points.addPoints(killerId, config.scoreKill);

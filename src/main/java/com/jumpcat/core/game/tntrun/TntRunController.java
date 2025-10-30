@@ -130,6 +130,8 @@ public class TntRunController implements GameController {
         World w = Bukkit.getWorld(currentWorldName);
         if (w == null) return;
         for (Player p : w.getPlayers()) {
+            // Ensure Adventure to prevent block glitching on TNT
+            try { p.setGameMode(GameMode.ADVENTURE); } catch (Throwable ignored) {}
             try { p.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.FEATHER, 1)); } catch (Throwable ignored) {}
         }
         // Now that everyone is in the new world, unload the previous one if set

@@ -123,17 +123,15 @@ public class TntRunListener implements Listener {
         // subtract blocks used and refresh action bar
         c.eaten = Math.max(0, c.eaten - config.blocksPerCharge);
         giveOrUpdateFeather(p, c.charges);
-        // launch based on aim: looking straight up -> mostly vertical
-        org.bukkit.util.Vector dir = p.getLocation().getDirection();
-        double upFrac = Math.max(0.0, dir.getY()); // 0 (horizontal/down) .. 1 (straight up)
-        org.bukkit.util.Vector horiz = dir.clone(); horiz.setY(0);
-        if (horiz.lengthSquared() > 1e-6) horiz.normalize(); else horiz = new org.bukkit.util.Vector(0,0,1);
-        double v = config.jumpVerticalStrong * (0.2 + 0.8 * upFrac); // stronger vertical when looking up
-        double h = config.jumpHorizontalStrong * (1.0 - 0.9 * upFrac); // near-zero horizontal when looking up
-        // Boost overall distance by ~30%
-        v *= 1.3;
-        h *= 1.3;
-        org.bukkit.util.Vector vec = horiz.multiply(h).setY(v);
+        // Aim-dependent launch: use player's facing for both horizontal/vertical.
+        // Clamp downward look to upward so looking down still launches up.
+        org.bukkit.util.Vector dir = p.getLocation().getDirection().normalize();
+        org.bukkit.util.Vector aim = new org.bukkit.util.Vector(dir.getX(), Math.abs(dir.getY()), dir.getZ());
+        if (aim.lengthSquared() < 1e-6) aim = new org.bukkit.util.Vector(0, 1, 0);
+        aim.normalize();
+        // Boost overall strength by ~70%
+        double strength = Math.max(0.1, config.jumpVerticalStrong * 1.7); // use vertical strength as total
+        org.bukkit.util.Vector vec = aim.multiply(strength);
         try { p.setVelocity(vec); } catch (Throwable ignored) {}
         try { p.getWorld().playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1f, 1.2f); } catch (Throwable ignored) {}
         // show updated action bar immediately
@@ -167,7 +165,10 @@ public class TntRunListener implements Listener {
     public void onQuit(PlayerQuitEvent e) {
         Player p = e.getPlayer();
         if (!inTntRun(p.getWorld())) return;
-        controller.onEliminated(p.getUniqueId());
+        // Only eliminate if the player is currently alive; spectators quitting should not trigger survival drip
+        if (controller.isAlive(p.getUniqueId())) {
+            controller.onEliminated(p.getUniqueId());
+        }
     }
 
     // World rules: disallow place/break, drop/pickup

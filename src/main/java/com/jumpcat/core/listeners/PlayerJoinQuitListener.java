@@ -19,29 +19,33 @@ public class PlayerJoinQuitListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
         sidebar.show(e.getPlayer());
-        // If any game is running, joiners should be spectators regardless of world
         try {
-            boolean gameRunning =
-                    (com.jumpcat.core.game.skywars.SkyWarsController.CURRENT != null)
-                    || (com.jumpcat.core.game.uhc.UhcMeetupController.CURRENT != null)
-                    || (com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT != null
-                            && (com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT.isRunning()
-                                || com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT.isSeriesRunning()))
-                    || (com.jumpcat.core.game.tntrun.TntRunController.CURRENT != null
-                            && com.jumpcat.core.game.tntrun.TntRunController.CURRENT.isRunning());
+            boolean sw = com.jumpcat.core.game.skywars.SkyWarsController.CURRENT != null && com.jumpcat.core.game.skywars.SkyWarsController.CURRENT.isRunning();
+            boolean uhc = com.jumpcat.core.game.uhc.UhcMeetupController.CURRENT != null && com.jumpcat.core.game.uhc.UhcMeetupController.CURRENT.isRunning();
+            boolean bb = com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT != null && (com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT.isRunning() || com.jumpcat.core.game.battlebox.BattleBoxController.CURRENT.isSeriesRunning());
+            boolean tntr = com.jumpcat.core.game.tntrun.TntRunController.CURRENT != null && com.jumpcat.core.game.tntrun.TntRunController.CURRENT.isRunning();
+            boolean gameRunning = sw || uhc || bb || tntr;
             if (gameRunning) {
                 try { e.getPlayer().getInventory().clear(); e.getPlayer().getInventory().setArmorContents(null); } catch (Throwable ignored) {}
                 e.getPlayer().setGameMode(org.bukkit.GameMode.SPECTATOR);
                 try { e.getPlayer().sendMessage(org.bukkit.ChatColor.YELLOW + "Game in progress. You are spectating."); } catch (Throwable ignored) {}
                 return;
             }
-            // Fallback: if they logged directly into a game world by name
-            String wn = e.getPlayer().getWorld() != null ? e.getPlayer().getWorld().getName() : "";
-            if (wn.startsWith("uhc_meetup_r") || wn.startsWith("skywars_r") || wn.startsWith("tntrun_r") || wn.equalsIgnoreCase("battle_box")) {
-                e.getPlayer().setGameMode(org.bukkit.GameMode.SPECTATOR);
+            // No game running: reset and send to lobby spawn
+            org.bukkit.entity.Player p = e.getPlayer();
+            try { p.getInventory().clear(); p.getInventory().setArmorContents(null); } catch (Throwable ignored) {}
+            try { p.getActivePotionEffects().forEach(ef -> p.removePotionEffect(ef.getType())); } catch (Throwable ignored) {}
+            try { p.setHealth(20.0); p.setFoodLevel(20); p.setSaturation(20); p.setLevel(0); p.setExp(0f); p.setTotalExperience(0); } catch (Throwable ignored) {}
+            p.setGameMode(org.bukkit.GameMode.ADVENTURE);
+            org.bukkit.Location lobby = null;
+            try { lobby = plugin.getLobbyManager().getLobbySpawn(); } catch (Throwable ignored) {}
+            if (lobby == null) {
+                try { lobby = org.bukkit.Bukkit.getWorlds().get(0).getSpawnLocation(); } catch (Throwable ignored) {}
             }
-            // Battle Box series or match: if player logged into battle_box, keep them spectator
-            // (Runtime flags live in controller/listeners; world name check above handles teleport-in scenarios.)
+            if (lobby != null) {
+                try { lobby.getWorld().getChunkAt(lobby).load(true); } catch (Throwable ignored) {}
+                try { p.teleport(lobby); } catch (Throwable ignored) {}
+            }
         } catch (Throwable ignored) {}
     }
 

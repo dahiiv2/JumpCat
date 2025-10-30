@@ -112,6 +112,26 @@ public final class JumpCatPlugin extends JavaPlugin {
             try { sidebarManager.show(p); } catch (Throwable ignored) {}
         }
 
+        // Server-wide: set collision rule to NEVER on all teams so TeamManager memberships stay intact
+        try {
+            org.bukkit.scoreboard.Scoreboard sb = getServer().getScoreboardManager().getMainScoreboard();
+            for (org.bukkit.scoreboard.Team team : sb.getTeams()) {
+                try { team.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.NEVER); } catch (Throwable ignored) {}
+            }
+            // Ensure a neutral team exists for unassigned players and has no collision
+            org.bukkit.scoreboard.Team neutral = sb.getTeam("jc_neutral");
+            if (neutral == null) neutral = sb.registerNewTeam("jc_neutral");
+            try { neutral.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.NEVER); } catch (Throwable ignored) {}
+            try { neutral.setAllowFriendlyFire(false); } catch (Throwable ignored) {}
+            try { neutral.setPrefix(""); } catch (Throwable ignored) {}
+            // Add online players without any team into neutral
+            for (org.bukkit.entity.Player p : getServer().getOnlinePlayers()) {
+                boolean inAny = false;
+                for (org.bukkit.scoreboard.Team t : sb.getTeams()) { if (t.hasEntry(p.getName())) { inAny = true; break; } }
+                if (!inAny) neutral.addEntry(p.getName());
+            }
+        } catch (Throwable ignored) {}
+
         PluginCommand cmd = getCommand("jumpcat");
         if (cmd != null) {
             cmd.setExecutor(new com.jumpcat.core.commands.JumpCatCommand(this));
