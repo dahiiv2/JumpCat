@@ -18,7 +18,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.entity.TNTPrimed;
-import org.bukkit.entity.TNTMinecart;
+import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.entity.Creeper;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.entity.EntitySpawnEvent;
@@ -222,7 +222,7 @@ public class SkyWarsListener implements Listener {
     // 1. TNT Minecart: track placer when spawned by player
     @EventHandler(ignoreCancelled = true)
     public void onTntMinecartPlace(PlayerInteractEntityEvent e) {
-        if (!(e.getRightClicked() instanceof TNTMinecart)) return;
+        if (!(e.getRightClicked() instanceof ExplosiveMinecart)) return;
         if (!inSkywars(e.getRightClicked().getWorld())) return;
         setSkywarsSpawner(e.getRightClicked(), e.getPlayer());
     }
@@ -246,10 +246,13 @@ public class SkyWarsListener implements Listener {
     }
 
     @EventHandler
-    public void onCreeperEgg(EntitySpawnEvent e) {
+    public void onCreeperEgg(org.bukkit.event.entity.CreatureSpawnEvent e) {
         if (e.getEntity() instanceof Creeper) {
             Creeper creeper = (Creeper) e.getEntity();
-            if (inSkywars(creeper.getWorld()) && creeper.getSpawnReason() == org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWN_EGG) {
+            String reason = "";
+            try { reason = String.valueOf(e.getSpawnReason()); } catch (Throwable ignored) {}
+            boolean egg = reason.equals("SPAWN_EGG") || reason.equals("SPAWNER_EGG") || reason.equals("EGG");
+            if (inSkywars(creeper.getWorld()) && egg) {
                 // Guarantee: check pendingEggSpawns for matching location (within tick)
                 Location cl = creeper.getLocation().getBlock().getLocation();
                 UUID owner = null;
@@ -269,7 +272,6 @@ public class SkyWarsListener implements Listener {
     }
 
     // 3. KILL ATTRIBUTION
-    @Override
     @EventHandler
     public void onDamage(EntityDamageByEntityEvent e) {
         if (!(e.getEntity() instanceof Player)) return;
@@ -304,8 +306,8 @@ public class SkyWarsListener implements Listener {
                 m.merge(explosiveOwner.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
             }
         // TNTMinecart: use metadata for source
-        } else if (e.getDamager() instanceof TNTMinecart) {
-            TNTMinecart cart = (TNTMinecart) e.getDamager();
+        } else if (e.getDamager() instanceof ExplosiveMinecart) {
+            ExplosiveMinecart cart = (ExplosiveMinecart) e.getDamager();
             UUID placerId = getSkywarsSpawner(cart);
             if (placerId != null) {
                 lastDamager.put(victim.getUniqueId(), new LastHit(placerId, System.currentTimeMillis()));
