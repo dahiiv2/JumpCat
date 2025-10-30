@@ -23,6 +23,11 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.bukkit.event.player.PlayerPickupItemEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.entity.Arrow;
+import org.bukkit.event.player.PlayerPickupArrowEvent;
+import org.bukkit.Material;
 
 public class BattleBoxListener implements Listener {
     private final BattleBoxManager manager;
@@ -293,5 +298,16 @@ public class BattleBoxListener implements Listener {
                 }
             } catch (Throwable ignored) {}
         }}.runTask(plugin);
+    }
+
+    // Prevent players from picking up arrows in BattleBox
+    @EventHandler
+    public void onArrowPickup(org.bukkit.event.entity.EntityPickupItemEvent e) {
+        if (!(e.getEntity() instanceof org.bukkit.entity.Player)) return;
+        org.bukkit.entity.Player player = (org.bukkit.entity.Player) e.getEntity();
+        if (!inBBWorld(player.getWorld())) return;
+        if (e.getItem().getItemStack().getType() == Material.ARROW) {
+            e.setCancelled(true);
+        }
     }
 }
