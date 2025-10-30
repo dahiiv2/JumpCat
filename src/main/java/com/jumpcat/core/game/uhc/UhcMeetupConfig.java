@@ -41,13 +41,13 @@ public class UhcMeetupConfig {
         this.templateWorld = cfg.getString("templateWorld", "uhc_meetup");
         this.centerAtSpawn = cfg.getBoolean("centerAtSpawn", true);
         this.graceSeconds = cfg.getInt("graceSeconds", 10);
-        this.shrinkSeconds = cfg.getInt("shrinkSeconds", 480);
+        this.shrinkSeconds = cfg.getInt("shrinkSeconds", 270);
         this.borderBase = cfg.getInt("borderBase", 50);
         this.borderPerTeam = cfg.getInt("borderPerTeam", 25);
         this.finalDiameter = cfg.getInt("finalDiameter", 3);
         this.yCeilStart = cfg.getInt("yCeilStart", 150);
         this.yCeilEnd = cfg.getInt("yCeilEnd", 80);
-        this.yCeilShrinkSeconds = cfg.getInt("yCeilShrinkSeconds", 420);
+        this.yCeilShrinkSeconds = cfg.getInt("yCeilShrinkSeconds", 210);
         this.yCeilHoldFinalSeconds = cfg.getInt("yCeilHoldFinalSeconds", 60);
         this.scoreKill = cfg.getInt("scoring.kill", 75);
         this.scoreSurvivalPerDeath = cfg.getInt("scoring.survivalPerDeath", 7);

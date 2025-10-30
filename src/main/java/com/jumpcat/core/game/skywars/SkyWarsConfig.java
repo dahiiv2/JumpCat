@@ -15,8 +15,8 @@ public class SkyWarsConfig {
     private int graceSeconds = 10;
 
     // Timers (in seconds)
-    private int roundHardCapSeconds = 7 * 60;     // 7:00
-    private int fullShrinkSeconds = 6 * 60 + 30;  // 6:30
+    private int roundHardCapSeconds = 4 * 60 + 30;     // 4:30
+    private int fullShrinkSeconds = 200;  // hard - grace(10) - 60
 
     // Border / ceiling targets
     private int finalBorderDiameter = 5; // 5x5
