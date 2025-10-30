@@ -184,6 +184,19 @@ public final class JumpCatPlugin extends JavaPlugin {
         if (eventCmd != null) {
             eventCmd.setExecutor(new com.jumpcat.core.commands.EventCommand(this, this.teamManager, this.pointsService, this.sidebarManager, this.lobbyManager));
         }
+
+        // Private messaging commands: /msg and /r
+        org.bukkit.command.PluginCommand msgCmd = getCommand("msg");
+        if (msgCmd != null) {
+            com.jumpcat.core.commands.MsgCommand mc = new com.jumpcat.core.commands.MsgCommand();
+            msgCmd.setExecutor(mc);
+            msgCmd.setTabCompleter(mc);
+        }
+        org.bukkit.command.PluginCommand rCmd = getCommand("r");
+        if (rCmd != null) {
+            com.jumpcat.core.commands.MsgCommand mc = new com.jumpcat.core.commands.MsgCommand();
+            rCmd.setExecutor(mc);
+        }
     }
 
     @Override

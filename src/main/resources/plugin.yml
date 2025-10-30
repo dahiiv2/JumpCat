@@ -44,3 +44,11 @@ commands:
   event:
     description: Event admin commands
     usage: /event end
+
+  msg:
+    description: Send a private message to a player
+    usage: /msg <player> <message>
+    aliases: [tell, whisper, w, m]
+  r:
+    description: Reply to the last private message conversation
+    usage: /r <message>
