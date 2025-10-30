@@ -60,6 +60,9 @@ public class UhcMeetupConfig {
             this.whitelistBlocks.add("ENCHANTING_TABLE");
             this.whitelistBlocks.add("ANVIL");
             this.whitelistBlocks.add("COBWEB");
+            this.whitelistBlocks.add("SHORT_GRASS");
+            this.whitelistBlocks.add("TALL_GRASS");
+            this.whitelistBlocks.add("OBSIDIAN");
         } else {
             // Backfill required blocks if missing
             if (!this.whitelistBlocks.contains("COBWEB")) this.whitelistBlocks.add("COBWEB");
