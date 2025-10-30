@@ -194,11 +194,14 @@ public class SkyWarsController implements GameController {
         // Pre-start freeze (5s) then Grace → enable PVP; start shrinks 30s after grace ends
         final int preStart = 5;
         final int grace = config.getGraceSeconds();
-        // Freeze players during pre-start (no movement + no collision)
+        // Freeze players during pre-start using potion effects (avoid flying kicks)
         try {
+            int dur = (preStart + 2) * 20; // a little buffer
             for (Player p : w.getPlayers()) {
-                p.setWalkSpeed(0.0f);
                 p.setCollidable(false);
+                try { p.setAllowFlight(true); } catch (Throwable ignored) {}
+                try { p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, dur, 255, false, false, false)); } catch (Throwable ignored) {}
+                try { p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.JUMP_BOOST, dur, 250, false, false, false)); } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
         // Mark freeze active so listener cancels all movement including jumps
@@ -207,8 +210,10 @@ public class SkyWarsController implements GameController {
         new BukkitRunnable(){ @Override public void run(){
             try {
                 for (Player p : w.getPlayers()) {
-                    p.setWalkSpeed(0.2f);
                     p.setCollidable(true);
+                    try { p.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS); } catch (Throwable ignored) {}
+                    try { p.removePotionEffect(org.bukkit.potion.PotionEffectType.JUMP_BOOST); } catch (Throwable ignored) {}
+                    try { p.setAllowFlight(false); } catch (Throwable ignored) {}
                 }
             } catch (Throwable ignored) {}
             preStartUntilMs = 0L;

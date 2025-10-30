@@ -84,6 +84,10 @@ public class SkyWarsListener implements Listener {
     public void onQuit(PlayerQuitEvent e) {
         Player p = e.getPlayer();
         if (!inSkywars(p.getWorld())) return;
+        // Clear any pre-start freeze effects to avoid lingering after quitting
+        try { p.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS); } catch (Throwable ignored) {}
+        try { p.removePotionEffect(org.bukkit.potion.PotionEffectType.JUMP_BOOST); } catch (Throwable ignored) {}
+        try { p.setAllowFlight(false); } catch (Throwable ignored) {}
         java.util.UUID killerId = null;
         LastHit lh = lastDamager.get(p.getUniqueId());
         if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) killerId = lh.attacker;
@@ -370,20 +374,7 @@ public class SkyWarsListener implements Listener {
     public void onMove(PlayerMoveEvent e) {
         Player p = e.getPlayer();
         if (!inSkywars(p.getWorld())) return;
-        // During pre-start freeze: cancel all positional movement but allow looking
-        try {
-            if (SkyWarsController.CURRENT != null && SkyWarsController.CURRENT.isPreStartActive(p.getWorld())) {
-                org.bukkit.Location from = e.getFrom();
-                org.bukkit.Location to = e.getTo();
-                if (to != null && (from.getX() != to.getX() || from.getY() != to.getY() || from.getZ() != to.getZ())) {
-                    org.bukkit.Location stay = from.clone();
-                    stay.setYaw(to.getYaw());
-                    stay.setPitch(to.getPitch());
-                    e.setTo(stay);
-                    return;
-                }
-            }
-        } catch (Throwable ignored) {}
+        // Pre-start freeze is handled via potion effects in the controller; no movement cancellation here
         if (e.getTo() == null) return;
         if (e.getTo().getY() >= 0.0) return;
         // Determine killer by last hit within 10s

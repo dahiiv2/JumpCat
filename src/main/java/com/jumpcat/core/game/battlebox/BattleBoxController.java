@@ -165,6 +165,20 @@ public class BattleBoxController implements GameController {
             clearWorldArrows(world);
         }
         if (activeRuntimes.isEmpty()) { nextRound(arenas); return; }
+        // 10s prep: apply freeze effects and titles to all participants
+        try {
+            int dur = (10 + 2) * 20;
+            for (BattleBoxRuntime rt : activeRuntimes.values()) {
+                for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) {
+                    Player p = Bukkit.getPlayer(id);
+                    if (p != null) {
+                        try { p.setAllowFlight(true); } catch (Throwable ignored) {}
+                        try { p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, dur, 255, false, false, false)); } catch (Throwable ignored) {}
+                        try { p.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, dur, 250, false, false, false)); } catch (Throwable ignored) {}
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
         // 10s prep titles to all participants
         prepTimer = new BukkitRunnable() {
             int t = 10;
@@ -184,6 +198,17 @@ public class BattleBoxController implements GameController {
     private void beginRoundLive(List<BattleBoxManager.Arena> arenas) {
         for (BattleBoxRuntime rt : activeRuntimes.values()) {
             rt.live = true;
+            // Clear freeze effects and disable flight
+            try {
+                for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) {
+                    Player p = Bukkit.getPlayer(id);
+                    if (p != null) {
+                        try { p.removePotionEffect(PotionEffectType.SLOWNESS); } catch (Throwable ignored) {}
+                        try { p.removePotionEffect(PotionEffectType.JUMP_BOOST); } catch (Throwable ignored) {}
+                        try { p.setAllowFlight(false); } catch (Throwable ignored) {}
+                    }
+                }
+            } catch (Throwable ignored) {}
             // Generate a single random kit for the whole round and give to all participants in this runtime
             RoundKit kit = generateRoundKit();
             for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) { Player p = Bukkit.getPlayer(id); if (p != null) applyKit(p, kit); }
@@ -354,7 +379,12 @@ public class BattleBoxController implements GameController {
         if (lobbyW != null) dest = lobbyW.getSpawnLocation();
         if (dest == null && bb != null) dest = bb.getSpawnLocation();
         if (bb != null && dest != null) {
-            for (Player p : bb.getPlayers()) { p.setGameMode(GameMode.ADVENTURE); p.teleport(dest); }
+            for (Player p : bb.getPlayers()) {
+                try { p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType())); } catch (Throwable ignored) {}
+                try { p.setAllowFlight(false); } catch (Throwable ignored) {}
+                p.setGameMode(GameMode.ADVENTURE);
+                p.teleport(dest);
+            }
         }
         // Show standings as if the game ended
         showTeamStandings();
@@ -517,11 +547,16 @@ public class BattleBoxController implements GameController {
 
     private void startCountdownAndRun(CommandSender initiator, BattleBoxRuntime rt, String teamA, String teamB) {
         // 10s countdown freeze (listener uses rt.live=false to block movement/damage)
-        // Disable player collision during freeze
+        // Disable player collision during freeze and apply potion-based freeze to avoid kicks
         try {
             for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) {
                 Player p = Bukkit.getPlayer(id);
-                if (p != null) p.setCollidable(false);
+                if (p != null) {
+                    p.setCollidable(false);
+                    try { p.setAllowFlight(true); } catch (Throwable ignored) {}
+                    try { p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, (10+2)*20, 255, false, false, false)); } catch (Throwable ignored) {}
+                    try { p.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, (10+2)*20, 250, false, false, false)); } catch (Throwable ignored) {}
+                }
             }
         } catch (Throwable ignored) {}
         new BukkitRunnable() {
@@ -546,7 +581,12 @@ public class BattleBoxController implements GameController {
         try {
             for (UUID id : union(rt.teamMembers('A'), rt.teamMembers('B'))) {
                 Player p = Bukkit.getPlayer(id);
-                if (p != null) p.setCollidable(true);
+                if (p != null) {
+                    p.setCollidable(true);
+                    try { p.removePotionEffect(PotionEffectType.SLOWNESS); } catch (Throwable ignored) {}
+                    try { p.removePotionEffect(PotionEffectType.JUMP_BOOST); } catch (Throwable ignored) {}
+                    try { p.setAllowFlight(false); } catch (Throwable ignored) {}
+                }
             }
         } catch (Throwable ignored) {}
         // Generate a single random kit for all players in this match

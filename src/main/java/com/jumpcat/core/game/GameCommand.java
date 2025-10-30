@@ -83,6 +83,23 @@ public class GameCommand implements CommandExecutor {
                 sender.sendMessage(ChatColor.AQUA + c.getDisplayName() + ChatColor.WHITE + ": " + c.status());
                 return true;
             }
+            case "unfreeze": {
+                if (args.length < 2) { sender.sendMessage(ChatColor.YELLOW + "Usage: /"+label+" unfreeze <player>"); return true; }
+                org.bukkit.entity.Player target = org.bukkit.Bukkit.getPlayerExact(args[1]);
+                if (target == null) { sender.sendMessage(ChatColor.RED + "Player not found or offline: " + args[1]); return true; }
+                try {
+                    target.getActivePotionEffects().forEach(e -> target.removePotionEffect(e.getType()));
+                    try { target.setAllowFlight(false); } catch (Throwable ignored) {}
+                    try { target.setCollidable(true); } catch (Throwable ignored) {}
+                    try { target.setWalkSpeed(0.2f); } catch (Throwable ignored) {}
+                    try { target.setFlying(false); } catch (Throwable ignored) {}
+                    try { target.setVelocity(new org.bukkit.util.Vector(0, 0, 0)); } catch (Throwable ignored) {}
+                    try { target.setFallDistance(0f); } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {}
+                sender.sendMessage(ChatColor.GREEN + "Unfroze: " + target.getName());
+                target.sendMessage(ChatColor.YELLOW + "Your movement state was reset by an admin.");
+                return true;
+            }
             default:
                 sendHelp(sender, label);
                 return true;
@@ -116,6 +133,9 @@ public class GameCommand implements CommandExecutor {
                     p.getInventory().clear();
                     p.getInventory().setArmorContents(null);
                     p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
+                    try { p.setAllowFlight(false); } catch (Throwable ignored) {}
+                    try { p.setCollidable(true); } catch (Throwable ignored) {}
+                    try { p.setWalkSpeed(0.2f); } catch (Throwable ignored) {}
                     p.setHealth(20.0);
                     p.setFoodLevel(20);
                     p.setSaturation(20);
@@ -126,6 +146,13 @@ public class GameCommand implements CommandExecutor {
                     p.teleport(lobby);
                 } catch (Throwable ignored) {}
             }
+        }
+        // Also reset movement flags for all online players (covers those already in lobby)
+        for (org.bukkit.entity.Player p : org.bukkit.Bukkit.getOnlinePlayers()) {
+            try { p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType())); } catch (Throwable ignored) {}
+            try { p.setAllowFlight(false); } catch (Throwable ignored) {}
+            try { p.setCollidable(true); } catch (Throwable ignored) {}
+            try { p.setWalkSpeed(0.2f); } catch (Throwable ignored) {}
         }
     }
 }
