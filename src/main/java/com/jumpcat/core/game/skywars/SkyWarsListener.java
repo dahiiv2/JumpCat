@@ -14,6 +14,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.inventory.ItemStack;
@@ -367,6 +368,19 @@ public class SkyWarsListener implements Listener {
         Player p = (Player) e.getEntity();
         if (!inSkywars(p.getWorld())) return;
         try { if (!p.getWorld().getPVP()) { e.setCancelled(true); return; } } catch (Throwable ignored) {}
+    }
+
+    // Prevent enabling flight during pre-start; we allow allowFlight=true to avoid kicks but block actual flying
+    @EventHandler
+    public void onToggleFlight(PlayerToggleFlightEvent e) {
+        Player p = e.getPlayer();
+        if (!inSkywars(p.getWorld())) return;
+        try {
+            if (SkyWarsController.CURRENT != null && SkyWarsController.CURRENT.isPreStartActive(p.getWorld())) {
+                e.setCancelled(true);
+                try { p.setFlying(false); } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
     }
 
     // Void kill: eliminate immediately when passing below Y=0

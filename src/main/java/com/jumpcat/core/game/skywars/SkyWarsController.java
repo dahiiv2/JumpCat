@@ -200,6 +200,7 @@ public class SkyWarsController implements GameController {
             for (Player p : w.getPlayers()) {
                 p.setCollidable(false);
                 try { p.setAllowFlight(true); } catch (Throwable ignored) {}
+                try { p.setFlySpeed(0.0f); } catch (Throwable ignored) {}
                 try { p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, dur, 255, false, false, false)); } catch (Throwable ignored) {}
                 try { p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.JUMP_BOOST, dur, 250, false, false, false)); } catch (Throwable ignored) {}
             }
@@ -214,6 +215,8 @@ public class SkyWarsController implements GameController {
                     try { p.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS); } catch (Throwable ignored) {}
                     try { p.removePotionEffect(org.bukkit.potion.PotionEffectType.JUMP_BOOST); } catch (Throwable ignored) {}
                     try { p.setAllowFlight(false); } catch (Throwable ignored) {}
+                    try { p.setFlying(false); } catch (Throwable ignored) {}
+                    try { p.setFlySpeed(0.1f); } catch (Throwable ignored) {}
                 }
             } catch (Throwable ignored) {}
             preStartUntilMs = 0L;
