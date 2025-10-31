@@ -7,15 +7,24 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CombatService implements Listener {
     private final SidebarManager sidebar;
+    private final org.bukkit.plugin.Plugin plugin;
     private static CombatService INSTANCE;
+    // Track players who recently teleported via enderpearl to prevent fall damage
+    private static final Map<UUID, Long> recentPearlTeleports = new ConcurrentHashMap<>();
 
-    public CombatService(SidebarManager sidebar) {
+    public CombatService(SidebarManager sidebar, org.bukkit.plugin.Plugin plugin) {
         this.sidebar = sidebar;
+        this.plugin = plugin;
         INSTANCE = this;
     }
 
@@ -69,12 +78,49 @@ public class CombatService implements Listener {
         if (!anyGameRunning()) return;
         Player p = e.getPlayer();
         if (p == null) return;
+        // Clean up tracking
+        recentPearlTeleports.remove(p.getUniqueId());
         // Defer K/D handling to per-game listeners to avoid double counts
         try {
             String wn = p.getWorld().getName();
             boolean inGameWorld = wn.startsWith("skywars_r") || wn.startsWith("uhc_meetup_r") || wn.equals("battle_box");
             if (inGameWorld) return;
         } catch (Throwable ignored) {}
+    }
+
+    // Track enderpearl teleports to prevent fall damage
+    @EventHandler
+    public void onTeleport(PlayerTeleportEvent e) {
+        if (!anyGameRunning()) return;
+        if (!inAnyGameWorld(e.getPlayer().getWorld())) return;
+        // Track teleports caused by enderpearls (within 5 seconds)
+        if (e.getCause() == PlayerTeleportEvent.TeleportCause.ENDER_PEARL) {
+            recentPearlTeleports.put(e.getPlayer().getUniqueId(), System.currentTimeMillis());
+            // Clean up after 5 seconds
+            final UUID playerId = e.getPlayer().getUniqueId();
+            org.bukkit.Bukkit.getScheduler().runTaskLater(
+                plugin,
+                () -> recentPearlTeleports.remove(playerId),
+                100L // 5 seconds
+            );
+        }
+    }
+
+    // Cancel fall damage from enderpearls
+    @EventHandler
+    public void onPearlDamage(EntityDamageEvent e) {
+        if (!anyGameRunning()) return;
+        if (!(e.getEntity() instanceof Player)) return;
+        if (!inAnyGameWorld(e.getEntity().getWorld())) return;
+        
+        Player p = (Player) e.getEntity();
+        // Cancel fall damage if player recently teleported via enderpearl (within 5 seconds)
+        if (e.getCause() == EntityDamageEvent.DamageCause.FALL) {
+            Long teleportTime = recentPearlTeleports.get(p.getUniqueId());
+            if (teleportTime != null && System.currentTimeMillis() - teleportTime < 5000L) {
+                e.setCancelled(true);
+            }
+        }
     }
 
     // Allow other listeners (e.g., SkyWars void/logout) to update K/D centrally

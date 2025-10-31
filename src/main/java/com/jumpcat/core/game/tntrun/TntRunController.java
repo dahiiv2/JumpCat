@@ -144,12 +144,13 @@ public class TntRunController implements GameController {
         for (Player p : w.getPlayers()) {
             // Ensure Adventure to prevent block glitching on TNT
             try { p.setGameMode(GameMode.ADVENTURE); } catch (Throwable ignored) {}
-            // Aggressively re-disable collision after gamemode change - always set, no check
-            try { if (running && w.getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {}
+            // Aggressively re-disable collision after gamemode change - ALWAYS disable
+            try { p.setCollidable(false); } catch (Throwable ignored) {}
             // Also set it delayed to catch any resets
             final org.bukkit.entity.Player fp = p;
+            final String worldName = currentWorldName;
             new org.bukkit.scheduler.BukkitRunnable(){ @Override public void run(){ 
-                if (running && fp.isOnline() && fp.getWorld().getName().equals(currentWorldName)) {
+                if (fp.isOnline() && fp.getWorld().getName().equals(worldName)) {
                     try { fp.setCollidable(false); } catch (Throwable ignored) {}
                 }
             } }.runTaskLater(plugin, 5L);
@@ -166,8 +167,10 @@ public class TntRunController implements GameController {
 
     private void prepareParticipant(Player p) {
         p.setGameMode(GameMode.SURVIVAL);
-        // Safeguard: re-disable collision after gamemode change (some servers reset it)
-        try { if (running && currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {}
+        // Safeguard: re-disable collision after gamemode change - ALWAYS disable for TNT Run worlds
+        if (currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) {
+            try { p.setCollidable(false); } catch (Throwable ignored) {}
+        }
         p.setHealth(20.0);
         p.setFoodLevel(20);
         p.setSaturation(20);
@@ -215,7 +218,7 @@ public class TntRunController implements GameController {
                 }
                 try { Bukkit.broadcastMessage(ChatColor.YELLOW + "Winner: " + teams.getTeamColor(lastTeam) + "" + ChatColor.BOLD + teams.getTeamLabel(lastTeam) + ChatColor.RESET + ChatColor.WHITE); } catch (Throwable ignored) {}
                 // Put everyone to spectator and show title
-                try { if (currentWorldName != null) { org.bukkit.World w = org.bukkit.Bukkit.getWorld(currentWorldName); if (w != null) { w.setPVP(false); for (org.bukkit.entity.Player p : w.getPlayers()) { try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {} try { if (running && w.getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {} } } } } catch (Throwable ignored) {}
+                try { if (currentWorldName != null) { org.bukkit.World w = org.bukkit.Bukkit.getWorld(currentWorldName); if (w != null) { w.setPVP(false); for (org.bukkit.entity.Player p : w.getPlayers()) { try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {} try { p.setCollidable(false); } catch (Throwable ignored) {} } } } } catch (Throwable ignored) {}
                 try {
                     String label = teams.getTeamColor(lastTeam) + "" + ChatColor.BOLD + teams.getTeamLabel(lastTeam);
                     String title = label + ChatColor.RESET + ChatColor.WHITE + " wins!";
@@ -340,13 +343,14 @@ public class TntRunController implements GameController {
             p.getInventory().setArmorContents(null);
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setGameMode(GameMode.ADVENTURE);
-            // Aggressively re-disable collision after gamemode change - always set, no check
-            if (running && currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) {
+            // Aggressively re-disable collision after gamemode change - ALWAYS disable for TNT Run worlds
+            if (currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) {
                 try { p.setCollidable(false); } catch (Throwable ignored) {}
                 // Also set it delayed to catch any resets
                 final org.bukkit.entity.Player fp = p;
+                final String worldName = currentWorldName;
                 new org.bukkit.scheduler.BukkitRunnable(){ @Override public void run(){ 
-                    if (running && fp.isOnline() && fp.getWorld().getName().equals(currentWorldName)) {
+                    if (fp.isOnline() && fp.getWorld().getName().equals(worldName)) {
                         try { fp.setCollidable(false); } catch (Throwable ignored) {}
                     }
                 } }.runTaskLater(plugin, 5L);

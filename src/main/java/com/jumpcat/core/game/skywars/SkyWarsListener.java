@@ -13,6 +13,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -389,6 +390,99 @@ public class SkyWarsListener implements Listener {
                 }
             }
         }
+    }
+
+    // Manually apply explosion damage to players including the placer (bypasses Paper self-damage protection)
+    // Also prevent blocks from dropping items when exploded by TNT
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGH)
+    public void onExplosion(EntityExplodeEvent e) {
+        if (!inSkywars(e.getLocation().getWorld())) return;
+        
+        // Get the source entity (TNT, creeper, or TNT minecart)
+        org.bukkit.entity.Entity sourceEntity = e.getEntity();
+        if (sourceEntity == null) return;
+        
+        // Prevent blocks exploded by TNT/TNT minecart from dropping items
+        // Store blocks to be destroyed, then manually break them without drops
+        if (sourceEntity instanceof TNTPrimed || sourceEntity instanceof ExplosiveMinecart) {
+            java.util.List<org.bukkit.block.Block> blocksToDestroy = new java.util.ArrayList<>(e.blockList());
+            e.blockList().clear(); // Prevent normal explosion drops
+            
+            // Manually break blocks without drops
+            for (org.bukkit.block.Block block : blocksToDestroy) {
+                try {
+                    // Break block without drops
+                    block.setType(Material.AIR, false);
+                } catch (Throwable ignored) {}
+            }
+        }
+        
+        UUID placerId = null;
+        Player placerPlayer = null;
+        
+        if (sourceEntity instanceof TNTPrimed) {
+            TNTPrimed tnt = (TNTPrimed) sourceEntity;
+            if (tnt.getSource() instanceof Player) {
+                placerPlayer = (Player) tnt.getSource();
+                placerId = placerPlayer.getUniqueId();
+            }
+        } else if (sourceEntity instanceof ExplosiveMinecart) {
+            placerId = getSkywarsSpawner(sourceEntity);
+            if (placerId != null) {
+                placerPlayer = Bukkit.getPlayer(placerId);
+            }
+        } else if (sourceEntity instanceof Creeper) {
+            placerId = getSkywarsSpawner(sourceEntity);
+            if (placerId != null) {
+                placerPlayer = Bukkit.getPlayer(placerId);
+            }
+        } else {
+            return; // Not a tracked explosive type
+        }
+        
+        if (placerId == null) return;
+        
+        // Damage players within explosion radius (typically 8 blocks for TNT)
+        Location explosionLoc = e.getLocation();
+        double explosionRadius = 8.0; // TNT explosion radius
+        double baseDamage = 8.0; // Base explosion damage
+        
+        // Schedule damage to run 1 tick later to ensure it happens after normal explosion damage
+        final UUID finalPlacerId = placerId;
+        final Player finalPlacerPlayer = placerPlayer;
+        final org.bukkit.entity.Entity finalSourceEntity = sourceEntity;
+        
+        new org.bukkit.scheduler.BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player nearby : explosionLoc.getWorld().getPlayers()) {
+                    if (!inSkywars(nearby.getWorld())) continue;
+                    if (nearby.isDead() || !nearby.isOnline()) continue;
+                    
+                    double distance = nearby.getLocation().distance(explosionLoc);
+                    if (distance > explosionRadius) continue;
+                    
+                    // Only manually damage the placer if they're still alive
+                    // Other players should have been damaged by the normal explosion
+                    if (finalPlacerId.equals(nearby.getUniqueId())) {
+                        // Calculate damage based on distance (linear falloff)
+                        double damagePercent = 1.0 - (distance / explosionRadius);
+                        if (damagePercent > 0) {
+                            double damage = baseDamage * damagePercent * 1.3; // Apply 1.3x multiplier
+                            
+                            // Manually damage the placer (this bypasses Paper's self-damage protection)
+                            try {
+                                if (finalPlacerPlayer != null && finalSourceEntity instanceof TNTPrimed) {
+                                    nearby.damage(damage, finalPlacerPlayer);
+                                } else {
+                                    nearby.damage(damage);
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+            }
+        }.runTaskLater(com.jumpcat.core.JumpCatPlugin.getPlugin(com.jumpcat.core.JumpCatPlugin.class), 1L);
     }
 
     // Custom: Stronger TNT and Creeper damage (NEEDS TESTING)

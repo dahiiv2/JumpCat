@@ -46,10 +46,9 @@ public class TntRunListener implements Listener {
         Player p = e.getPlayer();
         World w = p.getWorld();
         if (!inTntRun(w)) return;
-        // Aggressively enforce collision disabled - always set to false without checking
-        if (controller.isRunning() && w.getName().equals(controller.currentWorld())) {
-            try { p.setCollidable(false); } catch (Throwable ignored) {}
-        }
+        // Aggressively enforce collision disabled - ALWAYS disable for any player in TNT Run world
+        try { p.setCollidable(false); } catch (Throwable ignored) {}
+        
         if (!controller.isRunning() || !w.getName().equals(controller.currentWorld())) return;
         if (!controller.isLive()) return; // grace: no decay yet
         if (!controller.isAlive(p.getUniqueId())) return;
@@ -58,7 +57,7 @@ public class TntRunListener implements Listener {
             controller.onEliminated(p.getUniqueId());
             try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {}
             // Aggressively re-disable collision after gamemode change
-            try { if (controller.isRunning() && w.getName().equals(controller.currentWorld())) p.setCollidable(false); } catch (Throwable ignored) {}
+            try { p.setCollidable(false); } catch (Throwable ignored) {}
             try { p.teleport(w.getSpawnLocation()); } catch (Throwable ignored) {}
             return;
         }
@@ -196,9 +195,15 @@ public class TntRunListener implements Listener {
         Player p = e.getPlayer();
         World w = p.getWorld();
         if (!inTntRun(w)) return;
-        if (controller.isRunning() && w.getName().equals(controller.currentWorld())) {
-            try { p.setCollidable(false); } catch (Throwable ignored) {}
-        }
+        // ALWAYS disable collision for any player in TNT Run world
+        try { p.setCollidable(false); } catch (Throwable ignored) {}
+        // Also set it delayed to ensure it sticks
+        final org.bukkit.entity.Player fp = p;
+        new org.bukkit.scheduler.BukkitRunnable(){ @Override public void run(){ 
+            if (fp.isOnline() && inTntRun(fp.getWorld())) {
+                try { fp.setCollidable(false); } catch (Throwable ignored) {}
+            }
+        } }.runTaskLater(com.jumpcat.core.JumpCatPlugin.getPlugin(com.jumpcat.core.JumpCatPlugin.class), 1L);
     }
 
     // Ensure collision is disabled when players join mid-game
@@ -207,9 +212,15 @@ public class TntRunListener implements Listener {
         Player p = e.getPlayer();
         World w = p.getWorld();
         if (!inTntRun(w)) return;
-        if (controller.isRunning() && w.getName().equals(controller.currentWorld())) {
-            try { p.setCollidable(false); } catch (Throwable ignored) {}
-        }
+        // ALWAYS disable collision for any player in TNT Run world
+        try { p.setCollidable(false); } catch (Throwable ignored) {}
+        // Also set it delayed to ensure it sticks
+        final org.bukkit.entity.Player fp = p;
+        new org.bukkit.scheduler.BukkitRunnable(){ @Override public void run(){ 
+            if (fp.isOnline() && inTntRun(fp.getWorld())) {
+                try { fp.setCollidable(false); } catch (Throwable ignored) {}
+            }
+        } }.runTaskLater(com.jumpcat.core.JumpCatPlugin.getPlugin(com.jumpcat.core.JumpCatPlugin.class), 1L);
     }
 
     private int getAliveCount() {
@@ -234,14 +245,14 @@ public class TntRunListener implements Listener {
                 if (!ctrl.isRunning()) return;
                 World w = org.bukkit.Bukkit.getWorld(ctrl.currentWorld());
                 if (w == null) return;
-                // Aggressively enforce collision disabled - always set to false without checking
+                // Aggressively enforce collision disabled - ALWAYS set to false for ALL players in TNT Run world
                 for (Player p : w.getPlayers()) {
                     try { p.setCollidable(false); } catch (Throwable ignored) {}
                     if (!ctrl.isLive() || !ctrl.isAlive(p.getUniqueId())) continue;
                     processStaticFootprint(ctrl, p);
                 }
             } catch (Throwable ignored) {}
-        }, 2L, 2L);
+        }, 1L, 1L); // Run every tick instead of every 2 ticks for more aggressive enforcement
     }
 
     private static void processStaticFootprint(TntRunController ctrl, Player p) {

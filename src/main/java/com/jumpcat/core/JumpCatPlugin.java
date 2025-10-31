@@ -98,7 +98,7 @@ public final class JumpCatPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TntRunListener(tntr, tntrCfg), this);
         getServer().getPluginManager().registerEvents(new KillFeedbackListener(this), this);
         // Centralized combat tracker for kills/deaths → sidebar K/D (active only when a game runs)
-        getServer().getPluginManager().registerEvents(new CombatService(this.sidebarManager), this);
+        getServer().getPluginManager().registerEvents(new CombatService(this.sidebarManager, this), this);
         // Dynamic MOTD with active game status (from sidebar) and dynamic slots cap
         getServer().getPluginManager().registerEvents(new MotdListener(this, (BattleBoxController) this.gameRegistry.get("battlebox"), this.slotsManager, this.sidebarManager), this);
         // Enforce slots cap at login
