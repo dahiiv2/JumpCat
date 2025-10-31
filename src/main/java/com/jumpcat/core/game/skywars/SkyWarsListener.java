@@ -44,9 +44,6 @@ public class SkyWarsListener implements Listener {
     // Helper for guaranteed spawn-egg creeper owner
     private final java.util.Map<Location, UUID> pendingEggSpawns = new java.util.HashMap<>();
     private final java.util.Map<Location, Long> pendingEggTimes = new java.util.HashMap<>();
-    // Helper for TNT minecart placement tracking
-    private final java.util.Map<Location, UUID> pendingMinecartSpawns = new java.util.HashMap<>();
-    private final java.util.Map<Location, Long> pendingMinecartTimes = new java.util.HashMap<>();
 
     public SkyWarsListener(SkyWarsController controller, TeamManager teams) {
         this.controller = controller;
@@ -203,16 +200,6 @@ public class SkyWarsListener implements Listener {
             } catch (Throwable ignored) {}
             return;
         }
-        // Track TNT minecart placement
-        if (inHand.getType() == Material.TNT_MINECART || inHand.getType().name().equals("TNT_MINECART")) {
-            Location blockLoc = e.getBlockPlaced().getLocation();
-            // Track placement location (minecart spawns on rails, nearby)
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dy = -1; dy <= 1; dy++)
-                    for (int dz = -1; dz <= 1; dz++)
-                        pendingMinecartSpawns.put(blockLoc.clone().add(dx, dy, dz), p.getUniqueId());
-            pendingMinecartTimes.put(blockLoc, System.currentTimeMillis());
-        }
         // Infinite terracotta: refill same hand to 64 (survival only)
         Material m = inHand.getType();
         if (!isTerracotta(m)) return;
@@ -250,44 +237,12 @@ public class SkyWarsListener implements Listener {
         return null;
     }
 
-    // 1. TNT Minecart: track placer when spawned by player (from block placement or interaction)
+    // 1. TNT Minecart: track placer when spawned by player
     @EventHandler(ignoreCancelled = true)
     public void onTntMinecartPlace(PlayerInteractEntityEvent e) {
         if (!(e.getRightClicked() instanceof ExplosiveMinecart)) return;
         if (!inSkywars(e.getRightClicked().getWorld())) return;
         setSkywarsSpawner(e.getRightClicked(), e.getPlayer());
-    }
-    
-    // Track TNT minecart spawns from block placement
-    @EventHandler
-    public void onMinecartSpawn(EntitySpawnEvent e) {
-        if (!(e.getEntity() instanceof ExplosiveMinecart)) return;
-        if (!inSkywars(e.getEntity().getWorld())) return;
-        
-        ExplosiveMinecart cart = (ExplosiveMinecart) e.getEntity();
-        Location cartLoc = cart.getLocation().getBlock().getLocation();
-        
-        // Check if there's a recent minecart placement at this location
-        UUID owner = null;
-        for (int dx = -1; dx <= 1 && owner == null; dx++)
-            for (int dy = -1; dy <= 1 && owner == null; dy++)
-                for (int dz = -1; dz <= 1 && owner == null; dz++) {
-                    Location test = cartLoc.clone().add(dx, dy, dz);
-                    if (pendingMinecartSpawns.containsKey(test) && 
-                        System.currentTimeMillis() - pendingMinecartTimes.getOrDefault(test, 0L) < 1000L) { // 1s fudge
-                        owner = pendingMinecartSpawns.get(test);
-                        pendingMinecartSpawns.remove(test);
-                        pendingMinecartTimes.remove(test);
-                    }
-                }
-        
-        // If found owner, set metadata
-        if (owner != null) {
-            Player placer = Bukkit.getPlayer(owner);
-            if (placer != null) {
-                setSkywarsSpawner(cart, placer);
-            }
-        }
     }
 
     @EventHandler
