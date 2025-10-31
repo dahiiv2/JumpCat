@@ -350,7 +350,7 @@ public class SkyWarsListener implements Listener {
         if (sourceEntity == null) return;
         
         // Prevent blocks exploded by TNT/TNT minecart from dropping items
-        if (sourceEntity instanceof TNTPrimed || sourceEntity instanceof ExplosiveMinecart) {
+        if (sourceEntity instanceof TNTPrimed || sourceEntity instanceof ExplosiveMinecart || sourceEntity instanceof Creeper) {
             // Store blocks to be destroyed, then manually break them without drops
             java.util.List<org.bukkit.block.Block> blocksToDestroy = new java.util.ArrayList<>(e.blockList());
             e.blockList().clear(); // Prevent normal explosion drops

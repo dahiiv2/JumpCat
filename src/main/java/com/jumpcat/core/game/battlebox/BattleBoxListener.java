@@ -23,10 +23,12 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import org.bukkit.event.player.PlayerPickupItemEvent;
-import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.ItemSpawnEvent;
+import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.entity.Arrow;
-import org.bukkit.event.player.PlayerPickupArrowEvent;
+import org.bukkit.entity.AbstractArrow;
+import org.bukkit.entity.Item;
 import org.bukkit.Material;
 
 public class BattleBoxListener implements Listener {
@@ -189,18 +191,26 @@ public class BattleBoxListener implements Listener {
         if (!allowed) e.setCancelled(true);
     }
 
-    @EventHandler
-    public void onDrop(PlayerDropItemEvent e) {
-        if (!inBBWorld(e.getPlayer().getWorld())) return;
-        // Disallow drops for everyone in battle_box world
-        e.setCancelled(true);
-    }
 
-    @EventHandler
-    public void onPickup(PlayerAttemptPickupItemEvent e) {
+    // Remove stuck arrows immediately when they hit something
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
+    public void onArrowHit(ProjectileHitEvent e) {
+        if (!inBBWorld(e.getEntity().getWorld())) return;
+        if (e.getEntity() instanceof Arrow || e.getEntity() instanceof AbstractArrow) {
+            // Remove arrow immediately when it hits - prevents pickup
+            e.getEntity().remove();
+        }
+    }
+    
+    // Prevent players from interacting with any remaining stuck arrows
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
+    public void onArrowInteract(PlayerInteractEntityEvent e) {
         if (!inBBWorld(e.getPlayer().getWorld())) return;
-        // Disallow pickups for everyone in battle_box world to avoid clutter
-        e.setCancelled(true);
+        if (e.getRightClicked() instanceof Arrow || e.getRightClicked() instanceof AbstractArrow) {
+            e.setCancelled(true);
+            // Also remove the arrow to prevent future interactions
+            e.getRightClicked().remove();
+        }
     }
 
     @EventHandler
@@ -300,14 +310,4 @@ public class BattleBoxListener implements Listener {
         }}.runTask(plugin);
     }
 
-    // Prevent players from picking up arrows in BattleBox
-    @EventHandler
-    public void onArrowPickup(org.bukkit.event.entity.EntityPickupItemEvent e) {
-        if (!(e.getEntity() instanceof org.bukkit.entity.Player)) return;
-        org.bukkit.entity.Player player = (org.bukkit.entity.Player) e.getEntity();
-        if (!inBBWorld(player.getWorld())) return;
-        if (e.getItem().getItemStack().getType() == Material.ARROW) {
-            e.setCancelled(true);
-        }
-    }
 }
