@@ -134,6 +134,8 @@ public class TntRunController implements GameController {
         for (Player p : w.getPlayers()) {
             // Ensure Adventure to prevent block glitching on TNT
             try { p.setGameMode(GameMode.ADVENTURE); } catch (Throwable ignored) {}
+            // Safeguard: re-disable collision after gamemode change (some servers reset it)
+            try { if (running && w.getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {}
             try { p.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.FEATHER, 1)); } catch (Throwable ignored) {}
         }
         // Now that everyone is in the new world, unload the previous one if set
@@ -147,6 +149,8 @@ public class TntRunController implements GameController {
 
     private void prepareParticipant(Player p) {
         p.setGameMode(GameMode.SURVIVAL);
+        // Safeguard: re-disable collision after gamemode change (some servers reset it)
+        try { if (running && currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {}
         p.setHealth(20.0);
         p.setFoodLevel(20);
         p.setSaturation(20);
@@ -194,7 +198,7 @@ public class TntRunController implements GameController {
                 }
                 try { Bukkit.broadcastMessage(ChatColor.YELLOW + "Winner: " + teams.getTeamColor(lastTeam) + "" + ChatColor.BOLD + teams.getTeamLabel(lastTeam) + ChatColor.RESET + ChatColor.WHITE); } catch (Throwable ignored) {}
                 // Put everyone to spectator and show title
-                try { if (currentWorldName != null) { org.bukkit.World w = org.bukkit.Bukkit.getWorld(currentWorldName); if (w != null) { w.setPVP(false); for (org.bukkit.entity.Player p : w.getPlayers()) { try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {} } } } } catch (Throwable ignored) {}
+                try { if (currentWorldName != null) { org.bukkit.World w = org.bukkit.Bukkit.getWorld(currentWorldName); if (w != null) { w.setPVP(false); for (org.bukkit.entity.Player p : w.getPlayers()) { try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {} try { if (running && w.getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {} } } } } catch (Throwable ignored) {}
                 try {
                     String label = teams.getTeamColor(lastTeam) + "" + ChatColor.BOLD + teams.getTeamLabel(lastTeam);
                     String title = label + ChatColor.RESET + ChatColor.WHITE + " wins!";
@@ -271,7 +275,9 @@ public class TntRunController implements GameController {
                                     p.setCollidable(true);
                                     p.getInventory().clear(); p.getInventory().setArmorContents(null); p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
                                     p.setHealth(20.0); p.setFoodLevel(20); p.setSaturation(20); p.setLevel(0); p.setExp(0f); p.setTotalExperience(0);
-                                    p.setGameMode(GameMode.ADVENTURE); p.teleport(lobby);
+                                    p.setGameMode(GameMode.ADVENTURE);
+                                    // Note: collision re-enabled above since player is leaving TNT Run world
+                                    p.teleport(lobby);
                                 } catch (Throwable ignored) {}
                             }
                         }
@@ -317,6 +323,8 @@ public class TntRunController implements GameController {
             p.getInventory().setArmorContents(null);
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setGameMode(GameMode.ADVENTURE);
+            // Safeguard: re-disable collision after gamemode change if still in TNT Run world
+            try { if (running && currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {}
             p.setHealth(20.0);
             p.setFoodLevel(20);
             p.setSaturation(20);

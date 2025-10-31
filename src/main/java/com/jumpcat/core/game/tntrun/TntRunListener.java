@@ -55,7 +55,10 @@ public class TntRunListener implements Listener {
         if (e.getTo() == null) return;
         if (e.getTo().getY() < config.eliminationY) {
             controller.onEliminated(p.getUniqueId());
-            try { p.setGameMode(GameMode.SPECTATOR); p.teleport(w.getSpawnLocation()); } catch (Throwable ignored) {}
+            try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {}
+            // Safeguard: re-disable collision after gamemode change (spectators shouldn't collide either)
+            try { if (controller.isRunning() && w.getName().equals(controller.currentWorld())) p.setCollidable(false); } catch (Throwable ignored) {}
+            try { p.teleport(w.getSpawnLocation()); } catch (Throwable ignored) {}
             return;
         }
         processFootprint(p, e.getTo());
