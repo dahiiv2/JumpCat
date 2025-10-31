@@ -521,9 +521,7 @@ public class SkyWarsListener implements Listener {
         Player p = (Player) e.getEntity();
         if (!inSkywars(p.getWorld())) return;
         try { if (!p.getWorld().getPVP()) { e.setCancelled(true); return; } } catch (Throwable ignored) {}
-    }
-
-    
+    }    
 
     // Prevent enabling flight during pre-start; we allow allowFlight=true to avoid kicks but block actual flying
     @EventHandler

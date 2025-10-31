@@ -80,18 +80,23 @@ public class CombatService implements Listener {
         if (p == null) return;
         // Clean up tracking
         recentPearlTeleports.remove(p.getUniqueId());
-        // Defer K/D handling to per-game listeners to avoid double counts
-        try {
-            String wn = p.getWorld().getName();
-            boolean inGameWorld = wn.startsWith("skywars_r") || wn.startsWith("uhc_meetup_r") || wn.equals("battle_box");
-            if (inGameWorld) return;
-        } catch (Throwable ignored) {}
+    }
+
+    @EventHandler
+    public void onTeleport(PlayerTeleportEvent e) {
+        if (!inAnyGameWorld(e.getPlayer().getWorld())) return;
+        // Track teleports caused by enderpearls (within 5 seconds)
+        if (e.getCause() == PlayerTeleportEvent.TeleportCause.ENDER_PEARL) {
+            recentPearlTeleports.put(e.getPlayer().getUniqueId(), System.currentTimeMillis());
+            // Clean up entry after 5 seconds so later falls work normally
+            final java.util.UUID pid = e.getPlayer().getUniqueId();
+            try { org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> recentPearlTeleports.remove(pid), 100L); } catch (Throwable ignored) {}
+        }
     }
 
     // Cancel fall damage that occurs shortly after an ender pearl teleport
-    @EventHandler
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onPearlFallDamage(EntityDamageEvent e) {
-        if (!anyGameRunning()) return;
         if (!(e.getEntity() instanceof Player)) return;
         Player p = (Player) e.getEntity();
         if (!inAnyGameWorld(p.getWorld())) return;
@@ -99,23 +104,6 @@ public class CombatService implements Listener {
         Long when = recentPearlTeleports.get(p.getUniqueId());
         if (when != null && System.currentTimeMillis() - when < 5000L) {
             e.setCancelled(true);
-        }
-    }
-
-    // Cancel fall damage from enderpearls
-    @EventHandler
-    public void onPearlDamage(EntityDamageEvent e) {
-        if (!anyGameRunning()) return;
-        if (!(e.getEntity() instanceof Player)) return;
-        if (!inAnyGameWorld(e.getEntity().getWorld())) return;
-        
-        Player p = (Player) e.getEntity();
-        // Cancel fall damage if player recently teleported via enderpearl (within 5 seconds)
-        if (e.getCause() == EntityDamageEvent.DamageCause.FALL) {
-            Long teleportTime = recentPearlTeleports.get(p.getUniqueId());
-            if (teleportTime != null && System.currentTimeMillis() - teleportTime < 5000L) {
-                e.setCancelled(true);
-            }
         }
     }
 
