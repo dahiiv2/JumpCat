@@ -170,7 +170,10 @@ public class UhcMeetupController implements GameController {
             graceBorder.start();
         } catch (Throwable ignored) {}
         // Schedule grace end → enable PvP and start shrink schedulers
-        new BukkitRunnable(){ @Override public void run(){ if (!running) return; try { w.setPVP(true);} catch(Throwable ignored){}
+        new BukkitRunnable(){ @Override public void run(){ if (!running) return; 
+            // Reload config before starting shrinks to ensure latest timer values are used
+            config.load();
+            try { w.setPVP(true);} catch(Throwable ignored){}
             // Stop grace particle border
             try { if (graceBorder != null) graceBorder.stop(); } catch (Throwable ignored) {} finally { graceBorder = null; }
             Bukkit.broadcastMessage(ChatColor.GREEN + "Grace ended. PvP enabled!");
