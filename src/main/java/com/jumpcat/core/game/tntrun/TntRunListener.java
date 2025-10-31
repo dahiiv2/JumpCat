@@ -14,6 +14,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,6 +45,10 @@ public class TntRunListener implements Listener {
         Player p = e.getPlayer();
         World w = p.getWorld();
         if (!inTntRun(w)) return;
+        // Enforce collision disabled for all players in TNT Run
+        if (controller.isRunning() && w.getName().equals(controller.currentWorld())) {
+            try { if (p.isCollidable()) p.setCollidable(false); } catch (Throwable ignored) {}
+        }
         if (!controller.isRunning() || !w.getName().equals(controller.currentWorld())) return;
         if (!controller.isLive()) return; // grace: no decay yet
         if (!controller.isAlive(p.getUniqueId())) return;
@@ -181,6 +186,17 @@ public class TntRunListener implements Listener {
     @EventHandler
     public void onPickup(PlayerAttemptPickupItemEvent e) { if (inTntRun(e.getPlayer().getWorld())) e.setCancelled(true); }
 
+    // Ensure collision is disabled when players enter TNT Run world
+    @EventHandler
+    public void onWorldChange(PlayerChangedWorldEvent e) {
+        Player p = e.getPlayer();
+        World w = p.getWorld();
+        if (!inTntRun(w)) return;
+        if (controller.isRunning() && w.getName().equals(controller.currentWorld())) {
+            try { p.setCollidable(false); } catch (Throwable ignored) {}
+        }
+    }
+
     private int getAliveCount() {
         // Iterate online players in current world and count alive according to controller
         World w = Bukkit.getWorld(controller.currentWorld());
@@ -200,11 +216,13 @@ public class TntRunListener implements Listener {
         if (tickTask != null) { try { tickTask.cancel(); } catch (Throwable ignored) {} }
         tickTask = org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             try {
-                if (!ctrl.isRunning() || !ctrl.isLive()) return;
+                if (!ctrl.isRunning()) return;
                 World w = org.bukkit.Bukkit.getWorld(ctrl.currentWorld());
                 if (w == null) return;
+                // Enforce collision disabled for all players in TNT Run world
                 for (Player p : w.getPlayers()) {
-                    if (!ctrl.isAlive(p.getUniqueId())) continue;
+                    try { if (p.isCollidable()) p.setCollidable(false); } catch (Throwable ignored) {}
+                    if (!ctrl.isLive() || !ctrl.isAlive(p.getUniqueId())) continue;
                     processStaticFootprint(ctrl, p);
                 }
             } catch (Throwable ignored) {}
