@@ -104,6 +104,22 @@ public final class JumpCatPlugin extends JavaPlugin {
         // Enforce slots cap at login
         getServer().getPluginManager().registerEvents(new SlotsLoginListener(this.slotsManager), this);
 
+        // Disable advancements server-wide for all existing worlds
+        for (org.bukkit.World world : getServer().getWorlds()) {
+            try {
+                world.setGameRule(org.bukkit.GameRule.ANNOUNCE_ADVANCEMENTS, false);
+            } catch (Throwable ignored) {}
+        }
+        // Disable advancements for any worlds that load later
+        getServer().getPluginManager().registerEvents(new org.bukkit.event.Listener() {
+            @org.bukkit.event.EventHandler
+            public void onWorldLoad(org.bukkit.event.world.WorldLoadEvent e) {
+                try {
+                    e.getWorld().setGameRule(org.bukkit.GameRule.ANNOUNCE_ADVANCEMENTS, false);
+                } catch (Throwable ignored) {}
+            }
+        }, this);
+
         // Periodic sidebar refresh
         getServer().getScheduler().runTaskTimer(this, () -> sidebarManager.updateAll(), 20L, 20L);
 
