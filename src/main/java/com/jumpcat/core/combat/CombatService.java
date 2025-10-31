@@ -91,6 +91,9 @@ public class CombatService implements Listener {
             // Clean up entry after 5 seconds so later falls work normally
             final java.util.UUID pid = e.getPlayer().getUniqueId();
             try { org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> recentPearlTeleports.remove(pid), 100L); } catch (Throwable ignored) {}
+            // Extra safety: reset fall distance and grant brief invuln to absorb pearl landing tick
+            try { e.getPlayer().setFallDistance(0f); } catch (Throwable ignored) {}
+            try { e.getPlayer().setNoDamageTicks(Math.max(e.getPlayer().getNoDamageTicks(), 1)); } catch (Throwable ignored) {}
         }
     }
 
@@ -103,6 +106,16 @@ public class CombatService implements Listener {
         if (e.getCause() != EntityDamageEvent.DamageCause.FALL) return;
         Long when = recentPearlTeleports.get(p.getUniqueId());
         if (when != null && System.currentTimeMillis() - when < 5000L) {
+            e.setCancelled(true);
+        }
+    }
+
+    // Also cancel direct EnderPearl projectile damage on impact in game worlds
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
+    public void onPearlProjectileHit(org.bukkit.event.entity.EntityDamageByEntityEvent e) {
+        if (!(e.getEntity() instanceof Player)) return;
+        if (!inAnyGameWorld(e.getEntity().getWorld())) return;
+        if (e.getDamager() instanceof org.bukkit.entity.EnderPearl) {
             e.setCancelled(true);
         }
     }
