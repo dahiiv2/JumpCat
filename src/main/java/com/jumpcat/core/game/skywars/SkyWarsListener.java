@@ -183,7 +183,7 @@ public class SkyWarsListener implements Listener {
             org.bukkit.Location l = e.getBlockPlaced().getLocation().add(0.5, 0.0, 0.5);
             try {
                 org.bukkit.entity.TNTPrimed t = p.getWorld().spawn(l, org.bukkit.entity.TNTPrimed.class, primed -> {
-                    try { primed.setFuseTicks(40); } catch (Throwable ignored) {}
+                    try { primed.setFuseTicks(80); } catch (Throwable ignored) {}
                     try { primed.setSource(p); } catch (Throwable ignored) {}
                 });
             } catch (Throwable ignored) {}
@@ -373,7 +373,7 @@ public class SkyWarsListener implements Listener {
         if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper || e.getDamager() instanceof ExplosiveMinecart) {
             // Just scale by 1.2x, no minimum floor.
             double base = e.getDamage();
-            double scaled = base * 1.3;
+            double scaled = base * 1.5;
              // ALTERNATIVE : double scaled = Math.max(base * 2.2, 14.0) 
              // TNT / Creepers do at least 14 damage points (7 hearts), or if the damage would be more, does the higher value
             e.setDamage(scaled);
