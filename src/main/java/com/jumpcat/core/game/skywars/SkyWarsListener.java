@@ -338,12 +338,65 @@ public class SkyWarsListener implements Listener {
         }
     }
 
+    // Ensure TNT can damage its source (Paper may prevent this by default)
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
+    public void onTntAllowSelfDamage(EntityDamageByEntityEvent e) {
+        if (!(e.getEntity() instanceof Player)) return;
+        if (!inSkywars(e.getEntity().getWorld())) return;
+        Player victim = (Player) e.getEntity();
+        
+        // Ensure TNT can damage its source player
+        if (e.getDamager() instanceof TNTPrimed) {
+            TNTPrimed tnt = (TNTPrimed) e.getDamager();
+            if (tnt.getSource() instanceof Player) {
+                Player placer = (Player) tnt.getSource();
+                // If victim is the placer, ensure damage isn't cancelled and restore damage if needed
+                if (placer.getUniqueId().equals(victim.getUniqueId())) {
+                    if (e.isCancelled()) {
+                        e.setCancelled(false);
+                    }
+                    // If damage is 0 or very low, restore it to a reasonable value (Paper may set it to 0)
+                    if (e.getDamage() <= 0.1) {
+                        // Use a default explosion damage value (will be scaled later)
+                        e.setDamage(8.0); // Base explosion damage, will be multiplied by 1.2x later
+                    }
+                }
+            }
+        }
+        // Ensure TNT minecart can damage its source player
+        if (e.getDamager() instanceof ExplosiveMinecart) {
+            ExplosiveMinecart cart = (ExplosiveMinecart) e.getDamager();
+            UUID placerId = getSkywarsSpawner(cart);
+            if (placerId != null && placerId.equals(victim.getUniqueId())) {
+                if (e.isCancelled()) {
+                    e.setCancelled(false);
+                }
+                if (e.getDamage() <= 0.1) {
+                    e.setDamage(8.0);
+                }
+            }
+        }
+        // Ensure creeper can damage its source player
+        if (e.getDamager() instanceof Creeper) {
+            Creeper creeper = (Creeper) e.getDamager();
+            UUID spawnerId = getSkywarsSpawner(creeper);
+            if (spawnerId != null && spawnerId.equals(victim.getUniqueId())) {
+                if (e.isCancelled()) {
+                    e.setCancelled(false);
+                }
+                if (e.getDamage() <= 0.1) {
+                    e.setDamage(8.0);
+                }
+            }
+        }
+    }
+
     // Custom: Stronger TNT and Creeper damage (NEEDS TESTING)
     @EventHandler
     public void onTntAndCreeperDamage(EntityDamageByEntityEvent e) {
         if (!(e.getEntity() instanceof Player)) return;
         if (!inSkywars(e.getEntity().getWorld())) return;
-        if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper) {
+        if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper || e.getDamager() instanceof ExplosiveMinecart) {
             // Just scale by 1.2x, no minimum floor.
             double base = e.getDamage();
             double scaled = base * 1.3;
