@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerFishEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.entity.minecart.ExplosiveMinecart;
@@ -521,6 +522,8 @@ public class SkyWarsListener implements Listener {
         if (!inSkywars(p.getWorld())) return;
         try { if (!p.getWorld().getPVP()) { e.setCancelled(true); return; } } catch (Throwable ignored) {}
     }
+
+    
 
     // Prevent enabling flight during pre-start; we allow allowFlight=true to avoid kicks but block actual flying
     @EventHandler

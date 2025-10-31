@@ -88,21 +88,17 @@ public class CombatService implements Listener {
         } catch (Throwable ignored) {}
     }
 
-    // Track enderpearl teleports to prevent fall damage
+    // Cancel fall damage that occurs shortly after an ender pearl teleport
     @EventHandler
-    public void onTeleport(PlayerTeleportEvent e) {
+    public void onPearlFallDamage(EntityDamageEvent e) {
         if (!anyGameRunning()) return;
-        if (!inAnyGameWorld(e.getPlayer().getWorld())) return;
-        // Track teleports caused by enderpearls (within 5 seconds)
-        if (e.getCause() == PlayerTeleportEvent.TeleportCause.ENDER_PEARL) {
-            recentPearlTeleports.put(e.getPlayer().getUniqueId(), System.currentTimeMillis());
-            // Clean up after 5 seconds
-            final UUID playerId = e.getPlayer().getUniqueId();
-            org.bukkit.Bukkit.getScheduler().runTaskLater(
-                plugin,
-                () -> recentPearlTeleports.remove(playerId),
-                100L // 5 seconds
-            );
+        if (!(e.getEntity() instanceof Player)) return;
+        Player p = (Player) e.getEntity();
+        if (!inAnyGameWorld(p.getWorld())) return;
+        if (e.getCause() != EntityDamageEvent.DamageCause.FALL) return;
+        Long when = recentPearlTeleports.get(p.getUniqueId());
+        if (when != null && System.currentTimeMillis() - when < 5000L) {
+            e.setCancelled(true);
         }
     }
 
