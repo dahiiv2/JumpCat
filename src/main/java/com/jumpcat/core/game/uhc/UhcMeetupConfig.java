@@ -67,24 +67,24 @@ public class UhcMeetupConfig {
             // Backfill required blocks if missing
             if (!this.whitelistBlocks.contains("COBWEB")) this.whitelistBlocks.add("COBWEB");
         }
-        if (!file.exists()) {
-            YamlConfiguration out = new YamlConfiguration();
-            out.set("templateWorld", this.templateWorld);
-            out.set("centerAtSpawn", this.centerAtSpawn);
-            out.set("graceSeconds", this.graceSeconds);
-            out.set("shrinkSeconds", this.shrinkSeconds);
-            out.set("borderBase", this.borderBase);
-            out.set("borderPerTeam", this.borderPerTeam);
-            out.set("finalDiameter", this.finalDiameter);
-            out.set("yCeilStart", this.yCeilStart);
-            out.set("yCeilEnd", this.yCeilEnd);
-            out.set("yCeilShrinkSeconds", this.yCeilShrinkSeconds);
-            out.set("yCeilHoldFinalSeconds", this.yCeilHoldFinalSeconds);
-            out.set("scoring.kill", this.scoreKill);
-            out.set("scoring.survivalPerDeath", this.scoreSurvivalPerDeath);
-            out.set("scoring.winAlive", this.scoreWinAlive);
-            out.set("whitelistBlocks", this.whitelistBlocks.stream().toList());
-            try { out.save(file); } catch (IOException ignored) {}
-        }
+        // Always save config to ensure it's up-to-date with code defaults (only if file doesn't exist, or update missing keys)
+        YamlConfiguration out = file.exists() ? YamlConfiguration.loadConfiguration(file) : new YamlConfiguration();
+        // Update missing keys with current values (preserves manual edits, adds missing defaults)
+        if (!out.contains("templateWorld")) out.set("templateWorld", this.templateWorld);
+        if (!out.contains("centerAtSpawn")) out.set("centerAtSpawn", this.centerAtSpawn);
+        if (!out.contains("graceSeconds")) out.set("graceSeconds", this.graceSeconds);
+        if (!out.contains("shrinkSeconds")) out.set("shrinkSeconds", this.shrinkSeconds);
+        if (!out.contains("borderBase")) out.set("borderBase", this.borderBase);
+        if (!out.contains("borderPerTeam")) out.set("borderPerTeam", this.borderPerTeam);
+        if (!out.contains("finalDiameter")) out.set("finalDiameter", this.finalDiameter);
+        if (!out.contains("yCeilStart")) out.set("yCeilStart", this.yCeilStart);
+        if (!out.contains("yCeilEnd")) out.set("yCeilEnd", this.yCeilEnd);
+        if (!out.contains("yCeilShrinkSeconds")) out.set("yCeilShrinkSeconds", this.yCeilShrinkSeconds);
+        if (!out.contains("yCeilHoldFinalSeconds")) out.set("yCeilHoldFinalSeconds", this.yCeilHoldFinalSeconds);
+        if (!out.contains("scoring.kill")) out.set("scoring.kill", this.scoreKill);
+        if (!out.contains("scoring.survivalPerDeath")) out.set("scoring.survivalPerDeath", this.scoreSurvivalPerDeath);
+        if (!out.contains("scoring.winAlive")) out.set("scoring.winAlive", this.scoreWinAlive);
+        if (!out.contains("whitelistBlocks")) out.set("whitelistBlocks", this.whitelistBlocks.stream().toList());
+        try { out.save(file); } catch (IOException ignored) {}
     }
 }
