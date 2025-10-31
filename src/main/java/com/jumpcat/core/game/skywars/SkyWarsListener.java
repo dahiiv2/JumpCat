@@ -21,10 +21,7 @@ import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.entity.TNTPrimed;
-import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.entity.Creeper;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.event.entity.EntitySpawnEvent;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.metadata.MetadataValue;
 import org.bukkit.Location;
@@ -63,10 +60,10 @@ public class SkyWarsListener implements Listener {
         // Items drop by default; just mark elimination
         try { p.setGameMode(org.bukkit.GameMode.SPECTATOR); } catch (Throwable ignored) {}
         
-        // Determine killer - check getKiller() first, then lastDamager for TNT minecart/creeper kills
+        // Determine killer - check getKiller() first, then lastDamager for creeper kills
         java.util.UUID killerId = p.getKiller() != null ? p.getKiller().getUniqueId() : null;
         
-        // If no killer from getKiller(), check lastDamager (handles TNT minecart, creeper, and void kills)
+        // If no killer from getKiller(), check lastDamager (handles creeper and void kills)
         if (killerId == null) {
             LastHit lh = lastDamager.get(p.getUniqueId());
             if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) {
@@ -237,14 +234,6 @@ public class SkyWarsListener implements Listener {
         return null;
     }
 
-    // 1. TNT Minecart: track placer when spawned by player
-    @EventHandler(ignoreCancelled = true)
-    public void onTntMinecartPlace(PlayerInteractEntityEvent e) {
-        if (!(e.getRightClicked() instanceof ExplosiveMinecart)) return;
-        if (!inSkywars(e.getRightClicked().getWorld())) return;
-        setSkywarsSpawner(e.getRightClicked(), e.getPlayer());
-    }
-
     @EventHandler
     public void onPlayerUseSpawnEgg(org.bukkit.event.player.PlayerInteractEvent event) {
         if (event.getItem() == null || event.getItem().getType() != Material.CREEPER_SPAWN_EGG) return;
@@ -326,17 +315,6 @@ public class SkyWarsListener implements Listener {
                     m.merge(explosiveOwner.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
                 }
             }
-        // TNTMinecart: use metadata for source (but not for self-kills)
-        } else if (e.getDamager() instanceof ExplosiveMinecart) {
-            ExplosiveMinecart cart = (ExplosiveMinecart) e.getDamager();
-            UUID placerId = getSkywarsSpawner(cart);
-            if (placerId != null && !placerId.equals(victim.getUniqueId())) {
-                // Don't give kill credit for self-kills, but allow damage
-                lastDamager.put(victim.getUniqueId(), new LastHit(placerId, System.currentTimeMillis()));
-                double dmg = e.getFinalDamage();
-                java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
-                m.merge(placerId, new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
-            }
         // Creeper: use metadata for source (only for those spawned by egg, but not for self-kills)
         } else if (e.getDamager() instanceof Creeper) {
             Creeper creeper = (Creeper) e.getDamager();
@@ -351,17 +329,17 @@ public class SkyWarsListener implements Listener {
         }
     }
 
-    // Prevent blocks exploded by TNT/TNT minecart from dropping items
+    // Prevent blocks exploded by TNT/Creeper from dropping items
     @EventHandler
     public void onExplosion(EntityExplodeEvent e) {
         if (!inSkywars(e.getLocation().getWorld())) return;
         
-        // Get the source entity (TNT or TNT minecart)
+        // Get the source entity (TNT or Creeper)
         org.bukkit.entity.Entity sourceEntity = e.getEntity();
         if (sourceEntity == null) return;
         
-        // Prevent blocks exploded by TNT/TNT minecart from dropping items
-        if (sourceEntity instanceof TNTPrimed || sourceEntity instanceof ExplosiveMinecart || sourceEntity instanceof Creeper) {
+        // Prevent blocks exploded by TNT/Creeper from dropping items
+        if (sourceEntity instanceof TNTPrimed || sourceEntity instanceof Creeper) {
             // Store blocks to be destroyed, then manually break them without drops
             java.util.List<org.bukkit.block.Block> blocksToDestroy = new java.util.ArrayList<>(e.blockList());
             e.blockList().clear(); // Prevent normal explosion drops
@@ -381,7 +359,7 @@ public class SkyWarsListener implements Listener {
     public void onTntAndCreeperDamage(EntityDamageByEntityEvent e) {
         if (!(e.getEntity() instanceof Player)) return;
         if (!inSkywars(e.getEntity().getWorld())) return;
-        if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper || e.getDamager() instanceof ExplosiveMinecart) {
+        if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper) {
             // Just scale by 1.2x, no minimum floor.
             double base = e.getDamage();
             double scaled = base * 1.5;
