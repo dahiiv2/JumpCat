@@ -62,7 +62,18 @@ public class SkyWarsListener implements Listener {
         if (!inSkywars(p.getWorld())) return;
         // Items drop by default; just mark elimination
         try { p.setGameMode(org.bukkit.GameMode.SPECTATOR); } catch (Throwable ignored) {}
+        
+        // Determine killer - check getKiller() first, then lastDamager for TNT minecart/creeper kills
         java.util.UUID killerId = p.getKiller() != null ? p.getKiller().getUniqueId() : null;
+        
+        // If no killer from getKiller(), check lastDamager (handles TNT minecart, creeper, and void kills)
+        if (killerId == null) {
+            LastHit lh = lastDamager.get(p.getUniqueId());
+            if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) {
+                killerId = lh.attacker;
+            }
+        }
+        
         if (SkyWarsController.CURRENT != null) {
             SkyWarsController.CURRENT.onPlayerDeath(p.getUniqueId(), killerId);
         }
