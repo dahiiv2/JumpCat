@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+*.class
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Gradle build artifacts
+.gradle/buildOutputCleanup/
+
