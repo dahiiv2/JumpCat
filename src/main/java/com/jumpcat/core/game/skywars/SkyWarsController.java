@@ -386,8 +386,8 @@ public class SkyWarsController implements GameController {
         if (!running) return;
         // If player is already eliminated (spectator / not tracked), ignore
         if (!aliveAll.contains(victimId)) return;
-        // Kill points
-        if (killerId != null) {
+        // Kill points (but not for self-kills)
+        if (killerId != null && !killerId.equals(victimId)) {
             try {
                 plugin.getPointsService().addPoints(killerId, 75);
                 Player kp = Bukkit.getPlayer(killerId);

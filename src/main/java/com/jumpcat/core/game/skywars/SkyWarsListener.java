@@ -300,31 +300,36 @@ public class SkyWarsListener implements Listener {
                 java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
                 m.merge(shooter.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
             }
-        // TNTPrimed: credit source if a player
+        // TNTPrimed: credit source if a player (but not for self-kills)
         } else if (e.getDamager() instanceof TNTPrimed) {
             TNTPrimed tnt = (TNTPrimed) e.getDamager();
             if (tnt.getSource() instanceof Player) {
                 Player explosiveOwner = (Player) tnt.getSource();
-                lastDamager.put(victim.getUniqueId(), new LastHit(explosiveOwner.getUniqueId(), System.currentTimeMillis()));
-                double dmg = e.getFinalDamage();
-                java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
-                m.merge(explosiveOwner.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+                // Don't give kill credit for self-kills, but allow damage
+                if (!explosiveOwner.getUniqueId().equals(victim.getUniqueId())) {
+                    lastDamager.put(victim.getUniqueId(), new LastHit(explosiveOwner.getUniqueId(), System.currentTimeMillis()));
+                    double dmg = e.getFinalDamage();
+                    java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
+                    m.merge(explosiveOwner.getUniqueId(), new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
+                }
             }
-        // TNTMinecart: use metadata for source
+        // TNTMinecart: use metadata for source (but not for self-kills)
         } else if (e.getDamager() instanceof ExplosiveMinecart) {
             ExplosiveMinecart cart = (ExplosiveMinecart) e.getDamager();
             UUID placerId = getSkywarsSpawner(cart);
-            if (placerId != null) {
+            if (placerId != null && !placerId.equals(victim.getUniqueId())) {
+                // Don't give kill credit for self-kills, but allow damage
                 lastDamager.put(victim.getUniqueId(), new LastHit(placerId, System.currentTimeMillis()));
                 double dmg = e.getFinalDamage();
                 java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
                 m.merge(placerId, new HitAgg(dmg, System.currentTimeMillis()), (oldV, newV) -> { oldV.sum += newV.sum; oldV.last = newV.last; return oldV; });
             }
-        // Creeper: use metadata for source (only for those spawned by egg)
+        // Creeper: use metadata for source (only for those spawned by egg, but not for self-kills)
         } else if (e.getDamager() instanceof Creeper) {
             Creeper creeper = (Creeper) e.getDamager();
             UUID placerId = getSkywarsSpawner(creeper);
-            if (placerId != null) {
+            if (placerId != null && !placerId.equals(victim.getUniqueId())) {
+                // Don't give kill credit for self-kills, but allow damage
                 lastDamager.put(victim.getUniqueId(), new LastHit(placerId, System.currentTimeMillis()));
                 double dmg = e.getFinalDamage();
                 java.util.Map<java.util.UUID, HitAgg> m = damageDealt.computeIfAbsent(victim.getUniqueId(), k -> new java.util.concurrent.ConcurrentHashMap<>());
@@ -339,9 +344,9 @@ public class SkyWarsListener implements Listener {
         if (!(e.getEntity() instanceof Player)) return;
         if (!inSkywars(e.getEntity().getWorld())) return;
         if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper) {
-            // Just scale by 2.2x, no minimum floor.
+            // Just scale by 1.2x, no minimum floor.
             double base = e.getDamage();
-            double scaled = base * 1.4;
+            double scaled = base * 1.2;
              // ALTERNATIVE : double scaled = Math.max(base * 2.2, 14.0) 
              // TNT / Creepers do at least 14 damage points (7 hearts), or if the damage would be more, does the higher value
             e.setDamage(scaled);
@@ -391,10 +396,12 @@ public class SkyWarsListener implements Listener {
         // Pre-start freeze is handled via potion effects in the controller; no movement cancellation here
         if (e.getTo() == null) return;
         if (e.getTo().getY() >= 0.0) return;
-        // Determine killer by last hit within 10s
+        // Determine killer by last hit within 10s (but not self-kills)
         java.util.UUID killerId = null;
         LastHit lh = lastDamager.get(p.getUniqueId());
-        if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L) killerId = lh.attacker;
+        if (lh != null && System.currentTimeMillis() - lh.when <= 10_000L && !lh.attacker.equals(p.getUniqueId())) {
+            killerId = lh.attacker;
+        }
         // Route through Bukkit death pipeline so general listeners handle feedback/messages
         if (killerId != null) {
             org.bukkit.entity.Player killer = p.getServer().getPlayer(killerId);

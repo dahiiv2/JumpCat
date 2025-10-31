@@ -15,6 +15,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,9 +46,9 @@ public class TntRunListener implements Listener {
         Player p = e.getPlayer();
         World w = p.getWorld();
         if (!inTntRun(w)) return;
-        // Enforce collision disabled for all players in TNT Run
+        // Aggressively enforce collision disabled - always set to false without checking
         if (controller.isRunning() && w.getName().equals(controller.currentWorld())) {
-            try { if (p.isCollidable()) p.setCollidable(false); } catch (Throwable ignored) {}
+            try { p.setCollidable(false); } catch (Throwable ignored) {}
         }
         if (!controller.isRunning() || !w.getName().equals(controller.currentWorld())) return;
         if (!controller.isLive()) return; // grace: no decay yet
@@ -56,7 +57,7 @@ public class TntRunListener implements Listener {
         if (e.getTo().getY() < config.eliminationY) {
             controller.onEliminated(p.getUniqueId());
             try { p.setGameMode(GameMode.SPECTATOR); } catch (Throwable ignored) {}
-            // Safeguard: re-disable collision after gamemode change (spectators shouldn't collide either)
+            // Aggressively re-disable collision after gamemode change
             try { if (controller.isRunning() && w.getName().equals(controller.currentWorld())) p.setCollidable(false); } catch (Throwable ignored) {}
             try { p.teleport(w.getSpawnLocation()); } catch (Throwable ignored) {}
             return;
@@ -200,6 +201,17 @@ public class TntRunListener implements Listener {
         }
     }
 
+    // Ensure collision is disabled when players join mid-game
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent e) {
+        Player p = e.getPlayer();
+        World w = p.getWorld();
+        if (!inTntRun(w)) return;
+        if (controller.isRunning() && w.getName().equals(controller.currentWorld())) {
+            try { p.setCollidable(false); } catch (Throwable ignored) {}
+        }
+    }
+
     private int getAliveCount() {
         // Iterate online players in current world and count alive according to controller
         World w = Bukkit.getWorld(controller.currentWorld());
@@ -222,9 +234,9 @@ public class TntRunListener implements Listener {
                 if (!ctrl.isRunning()) return;
                 World w = org.bukkit.Bukkit.getWorld(ctrl.currentWorld());
                 if (w == null) return;
-                // Enforce collision disabled for all players in TNT Run world
+                // Aggressively enforce collision disabled - always set to false without checking
                 for (Player p : w.getPlayers()) {
-                    try { if (p.isCollidable()) p.setCollidable(false); } catch (Throwable ignored) {}
+                    try { p.setCollidable(false); } catch (Throwable ignored) {}
                     if (!ctrl.isLive() || !ctrl.isAlive(p.getUniqueId())) continue;
                     processStaticFootprint(ctrl, p);
                 }

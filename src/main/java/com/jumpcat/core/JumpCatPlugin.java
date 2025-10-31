@@ -104,7 +104,7 @@ public final class JumpCatPlugin extends JavaPlugin {
         // Enforce slots cap at login
         getServer().getPluginManager().registerEvents(new SlotsLoginListener(this.slotsManager), this);
 
-        // Disable advancements server-wide for all existing worlds
+        // Disable advancements server-wide: both game rule and event cancellation
         for (org.bukkit.World world : getServer().getWorlds()) {
             try {
                 world.setGameRule(org.bukkit.GameRule.ANNOUNCE_ADVANCEMENTS, false);
@@ -117,6 +117,13 @@ public final class JumpCatPlugin extends JavaPlugin {
                 try {
                     e.getWorld().setGameRule(org.bukkit.GameRule.ANNOUNCE_ADVANCEMENTS, false);
                 } catch (Throwable ignored) {}
+            }
+        }, this);
+        // Also cancel advancement events directly (catches announcements game rule doesn't catch)
+        getServer().getPluginManager().registerEvents(new org.bukkit.event.Listener() {
+            @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
+            public void onAdvancement(org.bukkit.event.player.PlayerAdvancementDoneEvent e) {
+                e.message(null); // Remove the announcement message
             }
         }, this);
 

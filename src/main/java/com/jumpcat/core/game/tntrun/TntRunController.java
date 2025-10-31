@@ -109,8 +109,18 @@ public class TntRunController implements GameController {
             try { p.teleport(spawn); } catch (Throwable ignored) {}
             prepareParticipant(p);
         }
-        // Disable collision for all players in this TNT Run world for the entire game duration
-        try { for (Player p : w.getPlayers()) { p.setCollidable(false); } } catch (Throwable ignored) {}
+        // Aggressively disable collision for all players in this TNT Run world - set it multiple times to ensure it sticks
+        try { 
+            for (Player p : w.getPlayers()) { 
+                p.setCollidable(false);
+                // Also set it in a delayed task to catch any resets
+                new org.bukkit.scheduler.BukkitRunnable(){ @Override public void run(){ 
+                    if (running && p.isOnline() && p.getWorld().getName().equals(currentWorldName)) {
+                        try { p.setCollidable(false); } catch (Throwable ignored) {}
+                    }
+                } }.runTaskLater(plugin, 5L);
+            } 
+        } catch (Throwable ignored) {}
         // Capture initial participant count AFTER filtering offline players
         initialParticipants = aliveAll.size();
 
@@ -134,8 +144,15 @@ public class TntRunController implements GameController {
         for (Player p : w.getPlayers()) {
             // Ensure Adventure to prevent block glitching on TNT
             try { p.setGameMode(GameMode.ADVENTURE); } catch (Throwable ignored) {}
-            // Safeguard: re-disable collision after gamemode change (some servers reset it)
+            // Aggressively re-disable collision after gamemode change - always set, no check
             try { if (running && w.getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {}
+            // Also set it delayed to catch any resets
+            final org.bukkit.entity.Player fp = p;
+            new org.bukkit.scheduler.BukkitRunnable(){ @Override public void run(){ 
+                if (running && fp.isOnline() && fp.getWorld().getName().equals(currentWorldName)) {
+                    try { fp.setCollidable(false); } catch (Throwable ignored) {}
+                }
+            } }.runTaskLater(plugin, 5L);
             try { p.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.FEATHER, 1)); } catch (Throwable ignored) {}
         }
         // Now that everyone is in the new world, unload the previous one if set
@@ -323,8 +340,17 @@ public class TntRunController implements GameController {
             p.getInventory().setArmorContents(null);
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setGameMode(GameMode.ADVENTURE);
-            // Safeguard: re-disable collision after gamemode change if still in TNT Run world
-            try { if (running && currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) p.setCollidable(false); } catch (Throwable ignored) {}
+            // Aggressively re-disable collision after gamemode change - always set, no check
+            if (running && currentWorldName != null && p.getWorld().getName().equals(currentWorldName)) {
+                try { p.setCollidable(false); } catch (Throwable ignored) {}
+                // Also set it delayed to catch any resets
+                final org.bukkit.entity.Player fp = p;
+                new org.bukkit.scheduler.BukkitRunnable(){ @Override public void run(){ 
+                    if (running && fp.isOnline() && fp.getWorld().getName().equals(currentWorldName)) {
+                        try { fp.setCollidable(false); } catch (Throwable ignored) {}
+                    }
+                } }.runTaskLater(plugin, 5L);
+            }
             p.setHealth(20.0);
             p.setFoodLevel(20);
             p.setSaturation(20);
