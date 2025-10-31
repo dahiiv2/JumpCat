@@ -346,7 +346,7 @@ public class SkyWarsListener implements Listener {
         if (e.getDamager() instanceof TNTPrimed || e.getDamager() instanceof Creeper) {
             // Just scale by 1.2x, no minimum floor.
             double base = e.getDamage();
-            double scaled = base * 1.2;
+            double scaled = base * 1.3;
              // ALTERNATIVE : double scaled = Math.max(base * 2.2, 14.0) 
              // TNT / Creepers do at least 14 damage points (7 hearts), or if the damage would be more, does the higher value
             e.setDamage(scaled);
